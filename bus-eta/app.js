@@ -1,5 +1,5 @@
 'use strict';
-/* HK Bus ETA 2.8. Route-discovery catalogue != authoritative operator route-stop list. */
+/* HK Bus ETA 2.9. Route-discovery catalogue != authoritative operator route-stop list. */
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const storage = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
@@ -58,7 +58,7 @@ const UI_ZH = {
  'Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.':'即時到站資料由九巴及城巴公開 API 提供；如有連線錯誤，會顯示錯誤而非猜測到站時間。',
  'Clear ETA cache':'清除到站快取','Clear favourites':'清除所有收藏',
  'Loading…':'載入中…','Loading stop name…':'正在載入站名…','Loading English name…':'正在載入英文站名…',
- 'Stop name unavailable':'無法取得站名','Checking KMB / Citybus official stop lists…':'正在查閱九巴／城巴官方站點資料…',
+ 'Stop name unavailable':'無法取得站名', 'Nearest':'最近','stops · Ordered from first stop to terminus':'站 · 按行車次序由起點至終點','Checking KMB / Citybus official stop lists…':'正在查閱九巴／城巴官方站點資料…',
  'Try again':'重試','Select your boarding stop':'選擇上車站',
  'No verified stops available for this service.':'此路線目前沒有已核實的巴士站。',
  'Upcoming bus arrivals':'即將抵站班次','Loading arrival predictions…':'正在載入到站預報…',
@@ -110,6 +110,7 @@ function translatePhrase(s){
    [/^GPS accuracy ±(\d+)m · (\d+) (?:matching |nearby )?route-stop entries$/,(m,n,z)=>'GPS 精確度 ±'+n+' 米 · '+z+' 項巴士站紀錄'],
    [/^(\d+) stop names are being verified in the background\.$/,(m,n)=>'正在背景核實 '+n+' 個站名。'],
    [/^(\d+) saved$/,(m,n)=>n+' 項已收藏'],
+   [/^([\d,]+) stops · Ordered from first stop to terminus$/,(m,n)=>n+' 個站 · 按行車次序由起點至終點'],
    [/^(\d+) m$/,(m,n)=>n+' 米'],
    [/^ · (\d+) m$/,(m,n)=>' · '+n+' 米'],
    [/^(\d+) min$/,(m,n)=>n+' 分鐘'],
@@ -523,16 +524,60 @@ function clusterStops(items,g){
   c.distance=ds.length?Math.min(...ds):null;
   c.farthestDistance=ds.length?Math.max(...ds):null;
  }
- return clusters.sort((a,b)=>pos?(a.distance??Infinity)-(b.distance??Infinity)||a.seq-b.seq:a.seq-b.seq);
+ // The selected route is a JOURNEY, not a list of nearby poles. Keep official
+ // operator stop sequence regardless of the user's GPS position. Different
+ // operators can use different stop numbering, so never compare their raw seq
+ // directly as though both were a single shared sequence.
+ return orderJourneyStops(clusters);
 }
-function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';}
+function orderJourneyStops(clusters){
+ if(!clusters.length)return clusters;
+ const preference=['KMB','LWB','CTB'];
+ const reference=preference.find(op=>clusters.some(s=>s.variants.some(v=>v.operator===op)))||clusters[0].variants[0].operator;
+ const primarySeq=s=>Math.min(...s.variants.filter(v=>v.operator===reference).map(v=>Number(v.seq)||9999));
+ const referenceRows=clusters.filter(s=>s.variants.some(v=>v.operator===reference));
+ const referenceMaximum=Math.max(1,...referenceRows.map(primarySeq).filter(Number.isFinite));
+ const otherOps=[...new Set(clusters.flatMap(s=>s.variants.map(v=>v.operator)))].filter(x=>x!==reference);
+ const adjustedSequence=new Map();
+ for(const op of otherOps){
+  const anchors=clusters.flatMap(s=>{
+   const alternate=s.variants.filter(v=>v.operator===op);
+   if(!alternate.length||!s.variants.some(v=>v.operator===reference))return [];
+   return [{foreign:Math.min(...alternate.map(v=>Number(v.seq)||9999)),main:primarySeq(s)}];
+  }).sort((a,b)=>a.foreign-b.foreign);
+  const alternateMax=Math.max(1,...clusters.flatMap(s=>s.variants.filter(v=>v.operator===op).map(v=>Number(v.seq)||0)));
+  for(const s of clusters){
+   if(s.variants.some(v=>v.operator===reference)||!s.variants.some(v=>v.operator===op))continue;
+   const foreign=Math.min(...s.variants.filter(v=>v.operator===op).map(v=>Number(v.seq)||9999));
+   let position;
+   if(!anchors.length){position=(foreign/alternateMax)*referenceMaximum;}
+   else{
+    const before=anchors.filter(a=>a.foreign<foreign).at(-1);
+    const after=anchors.find(a=>a.foreign>foreign);
+    if(before&&after){
+     position=before.main+(after.main-before.main)*(foreign-before.foreign)/(after.foreign-before.foreign);
+    }else if(before){position=before.main+(foreign-before.foreign)*0.5;}
+    else if(after){position=after.main-(after.foreign-foreign)*0.5;}
+    else position=(foreign/alternateMax)*referenceMaximum;
+   }
+   const previous=adjustedSequence.get(s);
+   if(previous===undefined||position<previous)adjustedSequence.set(s,position);
+  }
+ }
+ const sortable=clusters.map((s,i)=>({s,i,score:s.variants.some(v=>v.operator===reference)?primarySeq(s):adjustedSequence.get(s)??s.seq}));
+ sortable.sort((a,b)=>a.score-b.score||a.i-b.i);
+ // Displayed ordinal is the sequence of merged boarding locations, NOT any
+ // operator-native stop seq. Native seq is retained on each variant for ETAs.
+ return sortable.map(({s},index)=>({...s,stopNumber:index+1,totalStops:sortable.length}));
+}
+function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;}
 function closeDialog(){state.dialogToken++;if(stopObserver){stopObserver.disconnect();stopObserver=null;}state.expandedStopKey=null;$('#modalScrim').classList.add('hidden');state.currentGroup=null;state.currentStop=null;}
 async function openGroup(key){
  const groups=state.view==='nearby'?makeGroups(state.nearby):routeResults();
  let group=groups.find(g=>g.key===key);if(!group)return;
  const token=++state.dialogToken,selected=group.items[0];
  state.currentGroup=group;state.currentStop=null;state.routeFailures=[];state.loadingNames=0;state.expandedStopKey=null;
- dialog(group.route+' · '+(group.direction==='I'?'Inbound':'Outbound'));
+ dialog(group.route+' → '+localizedDestination(group));
  $('#modalBody').innerHTML='<p class="hint loading">Verifying route direction and stops…</p>';
  try{
   await ensurePhysicalRoute(group.route);
@@ -543,13 +588,16 @@ async function openGroup(key){
   const all=state.groups.find(g=>g.key===correctedKey);
   group=all||makeGroups(state.view==='nearby'?state.nearby:state.catalogue).find(g=>g.key===correctedKey)||group;
   state.currentGroup=group;
-  $('#modalTitle').textContent=group.route+' · '+(group.direction==='I'?'Inbound':group.direction==='O'?'Outbound':group.operators.join(' / '));
+  $('#modalTitle').textContent=group.route+' → '+localizedDestination(group);
   $('#modalBody').innerHTML='<p class="hint loading">Checking verified operator stop lists…</p>';
   await stopLinksReady;
   if(token!==state.dialogToken)return;
   const data=await officialGroup(group);
   if(token!==state.dialogToken)return;
   state.verified=data.stops;state.routeFailures=data.warnings;state.loadingNames=data.missing.length;
+  // A newly opened full route always starts at its first stop. Do not carry a
+  // previous route's scroll offset into this modal.
+  const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;
   drawStopPicker(token);void resolveStopDetails(data,group,token);
  }catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
 }
@@ -587,7 +635,10 @@ function stopExpandedMarkup(s){const data=state.demo?{arr:[3,12,24].map(n=>({at:
 }
 function drawStopPicker(token){if(token!==state.dialogToken)return;
  const modal=$('#modalScrim .modal'),scrollTop=modal?.scrollTop||0;
+ const listScrollTop=$('#modalBody .stop-list')?.scrollTop||0;
+ const closestIndex=state.position&&state.verified.length?state.verified.reduce((best,s,i)=>s.distance!==null&&(best<0||s.distance<state.verified[best].distance)?i:best,-1):-1;
  let body='<div class="stop-picker-caption">'+esc(localizedDestination(state.currentGroup||{}))+' · Select your boarding stop</div>';
+ if(state.verified.length)body+='<p class="small-note journey-summary">'+fmt(state.verified.length)+' stops · Ordered from first stop to terminus</p>';
  if(state.routeFailures.length)body+='<div class="notice">Some operators could not be loaded: '+esc(state.routeFailures.join('; '))+'</div>';
  if(state.loadingNames>0)body+='<p class="small-note" aria-live="polite">'+fmt(state.loadingNames)+' stop names are being verified in the background.</p>';
  if(!state.verified.length)body+='<div class="notice">No verified stops available for this service.</div>';
@@ -595,10 +646,11 @@ function drawStopPicker(token){if(token!==state.dialogToken)return;
  const expanded=state.expandedStopKey===stopKey(s);
   const spread=s.distance!==null&&s.farthestDistance!==null&&s.farthestDistance-s.distance>25;
   const distanceLabel=s.distance!==null?' · '+esc(s.distance)+(spread?'–'+esc(s.farthestDistance):'')+' m':'';
- return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
+ return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-ordinal" aria-label="Stop '+(i+1)+'">'+(i+1)+'</span><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+(i===closestIndex?' <span class="nearest-label">Nearest</span>':'')+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
  }).join('')+'</div>';
  $('#modalBody').innerHTML=body;
  if(modal)modal.scrollTop=scrollTop;
+ const newList=$('#modalBody .stop-list');if(newList)newList.scrollTop=listScrollTop;
  observeStopETAs(token);
 }
 let stopObserver=null;
