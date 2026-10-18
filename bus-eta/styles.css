@@ -71,3 +71,10 @@ button,input,select {touch-action:manipulation}
 .settings-preferences .small-note{margin:11px 0 0}
 .settings-preferences .selected-language {background:#183b32;color:var(--mint);border-color:#52ac89}
 @media(max-width:390px){.nearby-controls{padding:11px 12px}.settings-preferences .settings-options button{font-size:11px}}
+
+/* v2.5: first departure + operator on each grouped physical stop */
+.first-eta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;line-height:1.15}
+.first-eta strong{font-size:15px;color:var(--mint);font-variant-numeric:tabular-nums}
+.first-eta small{color:var(--muted);font-size:10px;font-weight:600}
+.stop-label{min-width:0}
+.stop-label small{white-space:normal;line-height:1.5}

@@ -390,19 +390,68 @@ async function resolveStopDetails(data,g,token){
   await Promise.all(batch.map(async it=>{try{Object.assign(it,await getStopDetails(it))}catch{it.name=it.name||'Stop name unavailable'}}));
   if(token!==state.dialogToken||state.currentStop)return;
   state.loadingNames=Math.max(0,missing.length-i-batch.length);
+  // Preserve the expanded stop if enrichment merges two previously separate rows.
+  const previous=state.verified.find(row=>stopKey(row)===state.expandedStopKey);
+  const expandedIDs=new Set((previous?.variants||[]).map(itemID));
   state.verified=clusterStops(data.items,g);
+  if(expandedIDs.size){const successor=state.verified.find(row=>row.variants.some(v=>expandedIDs.has(itemID(v))));
+   state.expandedStopKey=successor?stopKey(successor):null;
+  }
   drawStopPicker(token);
  }
+}
+// Operator stop IDs can differ even for the same boarding landmark. A pair may
+// have separated poles (e.g. the two Mary Court stops), so proximity alone is
+// insufficient. Require the SAME verified route and physical direction (the
+// group already enforces both), close coordinates AND matching landmark names.
+// Distinct poles of one operator must never be merged merely by proximity.
+function stopLandmark(value){
+ return String(value||'').normalize('NFKC').toLowerCase()
+  .split(/[,，、（(]/,1)[0]
+  .replace(/\b(?:bus stop|stop)\b/g,'').replace(/[\s.'’‘\-_/]/g,'').trim();
+}
+function commonStopLandmark(a,b){
+ const pairs=[['name_en','name_en'],['name_tc','name_tc']];
+ for(const [x,y] of pairs){const left=stopLandmark(a[x]),right=stopLandmark(b[y]);
+  if(left.length>=3&&left===right)return true;
+ }
+ // Older catalogues may have names only under the generic field.
+ const aName=stopLandmark(a.name),bName=stopLandmark(b.name);
+ return aName.length>=3&&aName===bName;
+}
+function sameBoardingLandmark(item,cluster){
+ if(!goodPosition(item)||!cluster.variants.every(goodPosition))return false;
+ if(cluster.route!==item.route)return false; // all variants were verified for the same physical route group
+ // Allow duplicate service types for the exact same operator stop, but not
+ // distinct stop IDs from the same operator.
+ if(cluster.variants.some(v=>v.operator===item.operator&&v.stop_id!==item.stop_id))return false;
+ return cluster.variants.every(v=>{
+  const separation=distance(item.lat,item.lng,v.lat,v.lng);
+  if(v.operator===item.operator)return v.stop_id===item.stop_id&&separation<=20;
+  return separation<=18 || (separation<=110&&commonStopLandmark(item,v));
+ });
 }
 function clusterStops(items,g){
  const ordered=items.slice().sort((a,b)=>a.seq-b.seq||a.operator.localeCompare(b.operator));
  const clusters=[];
- for(const it of ordered){let found=null;
-  if(goodPosition(it))found=clusters.find(s=>goodPosition(s)&&distance(s.lat,s.lng,it.lat,it.lng)<=25 && (s.name===it.name||s.variants.every(v=>v.operator!==it.operator)));
-  if(found){if(!found.variants.some(x=>itemID(x)===itemID(it)))found.variants.push(it);found.seq=Math.min(found.seq,it.seq);if(!found.name_en&&it.name_en)found.name_en=it.name_en;if(!found.name_tc&&it.name_tc)found.name_tc=it.name_tc;}
-  else clusters.push({route:g.route,direction:g.direction,destination:g.destination,name:it.name||'Loading stop name…',name_en:it.name_en||'',name_tc:it.name_tc||it.name||'',destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination,lat:it.lat,lng:it.lng,seq:it.seq,variants:[it]});
+ for(const it of ordered){
+  let found=clusters.find(s=>sameBoardingLandmark(it,s));
+  if(found){
+   if(!found.variants.some(v=>itemID(v)===itemID(it)))found.variants.push(it);
+   found.seq=Math.min(found.seq,it.seq);
+   if(!found.name_en&&it.name_en)found.name_en=it.name_en;
+   if(!found.name_tc&&it.name_tc)found.name_tc=it.name_tc;
+  }else clusters.push({route:g.route,direction:g.direction,destination:g.destination,
+    name:it.name||'Loading stop name…',name_en:it.name_en||'',name_tc:it.name_tc||it.name||'',
+    destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination,
+    lat:it.lat,lng:it.lng,seq:it.seq,variants:[it]});
  }
- const pos=state.position;clusters.forEach(s=>s.distance=pos&&goodPosition(s)?distance(pos.lat,pos.lng,s.lat,s.lng):null);
+ const pos=state.position;
+ for(const c of clusters){
+  const ds=pos?c.variants.filter(goodPosition).map(v=>distance(pos.lat,pos.lng,v.lat,v.lng)):[];
+  c.distance=ds.length?Math.min(...ds):null;
+  c.farthestDistance=ds.length?Math.max(...ds):null;
+ }
  return clusters.sort((a,b)=>pos?(a.distance??Infinity)-(b.distance??Infinity)||a.seq-b.seq:a.seq-b.seq);
 }
 function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';}
@@ -439,12 +488,23 @@ function combinedETAs(s){const gathered=s.variants.map(v=>state.etas.get(itemID(
 function etaMinutes(at){return Math.max(0,Math.ceil((at-Date.now())/60000));}
 function stopETAMarkup(s){if(state.demo)return '<strong>3 min</strong>';
  const result=combinedETAs(s);if(!result)return '<span class="muted">···</span>';
- if(result.arr.length){const mins=etaMinutes(result.arr[0].at);return '<strong>'+(mins===0?'Due':mins+' min')+'</strong>';}
+ if(result.arr.length){const first=result.arr[0],mins=etaMinutes(first.at);
+  return '<span class="first-eta"><strong>'+(mins===0?'Due':mins+' min')+'</strong><small>'+esc(names[first.operator]||first.operator)+'</small></span>';
+ }
  return '<span class="muted">'+(result.errors.length?'Error':'No ETA')+'</span>';
 }
 function stopExpandedMarkup(s){const data=state.demo?{arr:[3,12,24].map(n=>({at:Date.now()+n*60000,operator:s.variants[0].operator})),errors:[]}:combinedETAs(s);
  const arrivals=data?.arr||[],errors=data?.errors||[];
  let html='<div class="expanded-stop" role="region"><div class="expanded-heading">Upcoming bus arrivals</div>';
+ // Nearby platforms for different operators may be tens of metres apart.
+ // Keep each operator's actual walking distance visible when this matters.
+ if(state.position&&s.variants.length>1&&s.farthestDistance!==null&&s.distance!==null&&s.farthestDistance-s.distance>25){
+  const opDistances=[...new Set(s.variants.map(v=>v.operator))].map(op=>{
+   const ds=s.variants.filter(v=>v.operator===op&&goodPosition(v)).map(v=>distance(state.position.lat,state.position.lng,v.lat,v.lng));
+   return ds.length?esc(names[op]||op)+': '+Math.min(...ds)+' m':'';
+  }).filter(Boolean);
+  html+='<p class="small-note">'+opDistances.join(' · ')+'</p>';
+ }
  if(!data)html+='<p class="small-note loading">Loading arrival predictions…</p>';
  else if(arrivals.length)html+='<div class="eta-inline">'+arrivals.map(x=>'<span class="eta-inline-chip"><strong>'+esc(etaMinutes(x.at)===0?'Due':etaMinutes(x.at)+' min')+'</strong><small>'+esc(names[x.operator])+'</small></span>').join('')+'</div>';
  else html+='<p class="small-note">'+(errors.length?'API unavailable: '+esc(errors.join(' · ')):'No ETA currently predicted for this verified stop.')+'</p>';
@@ -460,7 +520,9 @@ function drawStopPicker(token){if(token!==state.dialogToken)return;
  if(!state.verified.length)body+='<div class="notice">No verified stops available for this service.</div>';
  else body+='<div class="result-list stop-list">'+state.verified.map((s,i)=>{
  const expanded=state.expandedStopKey===stopKey(s);
- return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+(s.distance!==null?' · '+esc(s.distance)+' m':'')+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
+  const spread=s.distance!==null&&s.farthestDistance!==null&&s.farthestDistance-s.distance>25;
+  const distanceLabel=s.distance!==null?' · '+esc(s.distance)+(spread?'–'+esc(s.farthestDistance):'')+' m':'';
+ return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
  }).join('')+'</div>';
  $('#modalBody').innerHTML=body;
  if(modal)modal.scrollTop=scrollTop;
