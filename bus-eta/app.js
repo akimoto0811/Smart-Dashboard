@@ -21,7 +21,7 @@ const demoStops = [
  {route:'102',direction:'O',destination:'美孚',name:'西灣河文娛中心, 筲箕灣道',variants:[{operator:'CTB',route:'102',direction:'O',stop_id:'001303',service_type:'1',name:'西灣河文娛中心, 筲箕灣道',lat:22.281794,lng:114.222021}]},
  {route:'960',direction:'O',destination:'灣仔',name:'Example stop',variants:[{operator:'KMB',route:'960',direction:'O',stop_id:'B8B04CD1E568B8F6',service_type:'1',name:'Example stop',lat:22.281,lng:114.158}]}
 ];
-const state = {view:'overview',demo:storage('hkbus_demo',true),catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),notice:'',forceRefresh:false};
+const state = {view:'overview',demo:storage('hkbus_demo',true),catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),notice:'',forceRefresh:false};
 state.favourites = Array.isArray(state.favourites)?state.favourites:[];
 function normalize(input){
  if(!input || typeof input!=='object')return null;
@@ -95,13 +95,33 @@ async function getOfficialStops(op,route,direction,service){const key=[op,route,
  const list=doc.data.filter(s=>clean(s.route)===route && (!s.dir||s.dir===direction) && (op==='CTB'?/^\d{6}$/.test(s.stop||''):/^[0-9A-F]{16}$/i.test(s.stop||''))).map(s=>({operator:op,route,direction,service_type:service,stop_id:clean(s.stop),seq:Number(s.seq)||9999})).sort((a,b)=>a.seq-b.seq);
  state.routeStops.set(key,{at:Date.now(),value:list});return list;
 }
+// Successfully resolved stop names can be re-used across routes and browsing sessions.
+const STOP_DETAILS_STORE='hkbus_official_stop_details_v1';
+const STOP_DETAILS_LIMIT=650;
+const stopDetailCache=storage(STOP_DETAILS_STORE,{});
+if(!stopDetailCache||typeof stopDetailCache!=='object'||Array.isArray(stopDetailCache)){} // malformed entries ignored when read
+function saveStopDetail(key,record){
+ if(!record || !record.name)return;
+ const data=storage(STOP_DETAILS_STORE,{}),value=data&&typeof data==='object'&&!Array.isArray(data)?data:{};
+ value[key]={name:record.name,lat:record.lat,lng:record.lng,at:Date.now()};
+ const keys=Object.keys(value);if(keys.length>STOP_DETAILS_LIMIT){keys.sort((a,b)=>(value[a].at||0)-(value[b].at||0));for(const k of keys.slice(0,keys.length-STOP_DETAILS_LIMIT))delete value[k];}
+ persist(STOP_DETAILS_STORE,value);
+}
+function cachedStopDetail(key){
+ const v=stopDetailCache&&typeof stopDetailCache==='object'?stopDetailCache[key]:null;
+ if(!v || !v.at || Date.now()-v.at>14*86400000 || !v.name)return null;
+ return {name:v.name,lat:latlon(v.lat),lng:latlon(v.lng)};
+}
 const stopNameURL = it => it.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/stop/${it.stop_id}`:`https://data.etabus.gov.hk/v1/transport/kmb/stop/${it.stop_id}`;
 async function getStopDetails(it){const key=it.operator+'|'+it.stop_id;
  if(state.stopDetails.has(key))return state.stopDetails.get(key);
- const task=(async()=>{const j=await requestJSON(stopNameURL(it),13000),d=j.data;if(!d)throw Error('Missing stop details for '+key);
+ const cached=cachedStopDetail(key);
+ if(cached){const promise=Promise.resolve({...it,...cached});state.stopDetails.set(key,promise);return promise;}
+ const task=(async()=>{const j=await requestJSON(stopNameURL(it),8500),d=j.data;if(!d)throw Error('Missing stop details for '+key);
  const lat=latlon(d.lat),lng=latlon(d.long??d.lng);
- return {...it,name:String(d.name_tc||d.name_en||'Stop '+it.stop_id),lat,lng};})();
- state.stopDetails.set(key,task);task.catch(()=>state.stopDetails.delete(key));return task;}
+ const record={...it,name:String(d.name_tc||d.name_en||'Stop '+it.stop_id),lat,lng};
+ saveStopDetail(key,record);return record;})();
+ state.stopDetails.set(key,task);task.catch(()=>{if(state.stopDetails.get(key)===task)state.stopDetails.delete(key)});return task;}
 async function officialGroup(g){
  const ops=g.operators || [...new Set(g.items.map(i=>i.operator))];
  const jobs=[];for(const op of ops){const candidates=g.items.filter(i=>i.operator===op),services=op==='CTB'?['1']:[...new Set(candidates.map(i=>i.service_type||'1'))].slice(0,4);
@@ -114,11 +134,25 @@ async function officialGroup(g){
   merged.set(key,{...record,name:m?.name||'',lat:m?.lat??null,lng:m?.lng??null,destination:g.destination});
  }}
  const items=[...merged.values()];
- // Operator route-stop APIs return IDs only. Prefer catalogue stop details where the
- // route/stop pair was verified, otherwise resolve directly from official stop API.
+ // Populate from persistent stop details without waiting for network requests.
+ for(const it of items){if(!it.name||!goodPosition(it)){const prior=cachedStopDetail(it.operator+'|'+it.stop_id);if(prior)Object.assign(it,prior);}}
  const missing=items.filter(it=>!goodPosition(it)||!it.name);
- for(let i=0;i<missing.length;i+=8){await Promise.all(missing.slice(i,i+8).map(async it=>{try{Object.assign(it,await getStopDetails(it));}catch{it.name=it.name||'Stop '+it.stop_id;}}));}
- return {stops:clusterStops(items,g),warnings};
+ return {stops:clusterStops(items,g),warnings,items,missing};
+}
+async function resolveStopDetails(data,g,token){
+ const missing=data.missing;
+ if(!missing.length)return;
+ state.loadingNames=missing.length;
+ // Render immediately: stop-name requests are enrichment, not a blocker for ETA.
+ for(let i=0;i<missing.length;i+=12){
+  if(token!==state.dialogToken||state.currentStop)return;
+  const batch=missing.slice(i,i+12);
+  await Promise.all(batch.map(async it=>{try{Object.assign(it,await getStopDetails(it))}catch{it.name=it.name||'Stop name unavailable'}}));
+  if(token!==state.dialogToken||state.currentStop)return;
+  state.loadingNames=Math.max(0,missing.length-i-batch.length);
+  state.verified=clusterStops(data.items,g);
+  drawStopPicker(token);
+ }
 }
 function clusterStops(items,g){
  const ordered=items.slice().sort((a,b)=>a.seq-b.seq||a.operator.localeCompare(b.operator));
@@ -126,7 +160,7 @@ function clusterStops(items,g){
  for(const it of ordered){let found=null;
   if(goodPosition(it))found=clusters.find(s=>goodPosition(s)&&distance(s.lat,s.lng,it.lat,it.lng)<=25 && (s.name===it.name||s.variants.every(v=>v.operator!==it.operator)));
   if(found){if(!found.variants.some(x=>itemID(x)===itemID(it)))found.variants.push(it);found.seq=Math.min(found.seq,it.seq);}
-  else clusters.push({route:g.route,direction:g.direction,destination:g.destination,name:it.name||'Stop '+it.stop_id,lat:it.lat,lng:it.lng,seq:it.seq,variants:[it]});
+  else clusters.push({route:g.route,direction:g.direction,destination:g.destination,name:it.name||'Loading stop name…',lat:it.lat,lng:it.lng,seq:it.seq,variants:[it]});
  }
  const pos=state.position;clusters.forEach(s=>s.distance=pos&&goodPosition(s)?distance(pos.lat,pos.lng,s.lat,s.lng):null);
  return clusters.sort((a,b)=>pos?(a.distance??Infinity)-(b.distance??Infinity)||a.seq-b.seq:a.seq-b.seq);
@@ -137,16 +171,19 @@ async function openGroup(key){const groups=state.view==='nearby'?makeGroups(stat
  if(!group)return;
  // Nearby discovers the route using local points, but needs all operators on
  // that route when verifying stops (joint KMB + Citybus services).
- if(state.view==='nearby'&&!state.demo)group=state.groups.find(g=>g.key===key)||group;const token=++state.dialogToken;state.currentGroup=group;state.currentStop=null;state.routeFailures=[];dialog(group.route+' · '+(group.direction==='I'?'Inbound':'Outbound'));
+ if(state.view==='nearby'&&!state.demo)group=state.groups.find(g=>g.key===key)||group;const token=++state.dialogToken;state.currentGroup=group;state.currentStop=null;state.routeFailures=[];state.loadingNames=0;dialog(group.route+' · '+(group.direction==='I'?'Inbound':'Outbound'));
  $('#modalBody').innerHTML='<p class="hint loading">Checking KMB / Citybus official stop lists…</p>';
  if(state.demo){state.verified=demoStops.filter(x=>x.route===group.route&&x.direction===group.direction);drawStopPicker(token);return;}
- try{const data=await officialGroup(group);if(token!==state.dialogToken)return;state.verified=data.stops;state.routeFailures=data.warnings;drawStopPicker(token);}
+ try{const data=await officialGroup(group);if(token!==state.dialogToken)return;
+ state.verified=data.stops;state.routeFailures=data.warnings;state.loadingNames=data.missing.length;
+ drawStopPicker(token);void resolveStopDetails(data,group,token);}
  catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
 }
-function drawStopPicker(token){if(token!==state.dialogToken)return;let body='<div class="detail"><strong>'+esc(state.currentGroup?.destination||'')+'</strong><p class="hint">Select your actual boarding stop. These stop IDs come from the operator’s current official route list.</p></div>';
+function drawStopPicker(token){if(token!==state.dialogToken)return;let body='<div class="detail"><strong>'+esc(state.currentGroup?.destination||'')+'</strong><p class="hint">Select your actual boarding stop. Stops are verified against the operators’ official route lists.</p></div>';
  if(state.routeFailures.length)body+='<div class="notice">Some operators could not be loaded: '+esc(state.routeFailures.join('; '))+'</div>';
+ if(state.loadingNames>0)body+='<p class="small-note" aria-live="polite">Showing verified stops now · '+fmt(state.loadingNames)+' stop names still loading in the background.</p>';
  if(!state.verified.length){body+='<div class="notice">No verified stops returned for this route and direction. Please try another route or later.</div>';}
- else body+='<div class="result-list">'+state.verified.map((s,i)=>`<button class="result-item" data-action="selectStop" data-index="${i}"><span><span class="result-name">${esc(s.name)}</span><span class="result-sub">${operatorChips([...new Set(s.variants.map(x=>x.operator))])} · ${s.distance!==null?esc(s.distance)+' m away · ':''}${s.variants.map(x=>esc(x.stop_id)).join(' / ')}</span></span><span class="result-right">ETA ›</span></button>`).join('')+'</div>';
+ else body+='<div class="result-list">'+state.verified.map((s,i)=>`<button class="result-item" data-action="selectStop" data-index="${i}"><span><span class="result-name">${esc(s.name)}</span><span class="result-sub">${operatorChips([...new Set(s.variants.map(x=>x.operator))])}${s.distance!==null?' · '+esc(s.distance)+' m away':''}</span></span><span class="result-right">ETA ›</span></button>`).join('')+'</div>';
  $('#modalBody').innerHTML=body;
 }
 function etaURL(it){return it.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}/${encodeURIComponent(it.service_type||'1')}`;}
@@ -189,9 +226,11 @@ async function indexedPut(key,value){try{const db=await new Promise((yes,no)=>{c
  await new Promise((yes,no)=>{const tx=db.transaction('data','readwrite');tx.objectStore('data').put(value,key);tx.oncomplete=()=>{db.close();yes();};tx.onerror=()=>no(tx.error);});}catch{/* Site catalogue still works this session. */}}
 function applyCatalogue(entries,date){state.catalogue=entries;state.groups=makeGroups(entries);state.catalogueDate=date||'Unknown';render();}
 async function loadCatalogue(){const saved=await indexedGet('catalogue');if(saved&&Array.isArray(saved.entries)){applyCatalogue(saved.entries,saved.date);}
- try{const res=await fetch('./catalogue.json',{cache:'no-store'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut('catalogue',{entries,date:state.catalogueDate});}
+ // Avoid fetching/parsing the full 14 MB catalogue on every launch.
+ if(saved?.fetchedAt&&Date.now()-saved.fetchedAt<6*3600000)return;
+ try{const res=await fetch('./catalogue.json',{cache:'default'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut('catalogue',{entries,date:state.catalogueDate,fetchedAt:Date.now()});}
  catch(e){if(!state.catalogue.length)banner('Could not load catalogue.json: '+e.message+'. Import the JSON file in Settings.');}}
-async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut('catalogue',{entries,date:state.catalogueDate});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
+async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut('catalogue',{entries,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
 async function importFavourites(file){try{const json=JSON.parse(await file.text()),arr=Array.isArray(json)?json:Object.values(json);const previous=state.favourites;state.favourites=[...previous,...arr];restoreFavs();state.favourites=[...new Map(state.favourites.map(f=>[favID(f),f])).values()];persist('hkbus_favourites_v2',state.favourites);render();banner('Favourites imported.');}catch(e){banner('Import failed: '+e.message);}}
 let inputTimer;
 document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);},160);}});
