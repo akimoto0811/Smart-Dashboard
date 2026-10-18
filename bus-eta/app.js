@@ -1,5 +1,5 @@
 'use strict';
-/* HK Bus ETA 2.0. Route-discovery catalogue != authoritative operator route-stop list. */
+/* HK Bus ETA 2.8. Route-discovery catalogue != authoritative operator route-stop list. */
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const storage = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
@@ -23,7 +23,7 @@ const demoStops = [
 ];
 const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
-const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false};
+const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
 // UI translations only. Route numbers/IDs and stored JSON keys are never translated.
 const UI_ZH = {
  'Hong Kong ·':'香港 ·', 'HONG KONG ·':'香港 ·',
@@ -47,6 +47,7 @@ const UI_ZH = {
  'Preferences':'偏好設定','Choose your language and start page':'選擇介面語言及啟動畫面',
  'Interface language':'介面語言','English':'English','繁體中文':'繁體中文','Start page':'啟動畫面',
  'This page opens when you launch the dashboard. Your choice is saved on this device.':'每次開啟本網站都會先顯示所選頁面；設定只儲存在此裝置。',
+ 'Joint-route stop mapping':'聯營路線巴士站配對',
  'App information':'應用程式資訊','Bus data and maintenance':'巴士資料與維護',
  'Bus catalogue':'巴士站資料庫','Route-stop records':'路線與巴士站紀錄','Routes / directions':'路線／方向數目',
  'Last generated':'資料更新日期','Hong Kong time':'香港時間','Not loaded':'尚未載入',
@@ -166,7 +167,7 @@ function normalize(input){
  if(!operators.includes(operator)||!/^\d{1,3}[A-Z]{0,2}$|^[A-Z]{1,3}\d{1,3}[A-Z]?$/.test(route)||!['O','I'].includes(direction)||!/^[0-9]{1,3}$/.test(service_type))return null;
  if(operator==='CTB'?!/^\d{6}$/.test(stop_id):!/^[0-9A-F]{16}$/.test(stop_id))return null;
  const lat=latlon(input.lat),lng=latlon(input.lng??input.long);
- return {operator,route,direction,stop_id,service_type,name:String(input.name||input.stop_name||'Bus stop'),name_en:String(input.name_en||''),name_tc:String(input.name_tc||input.name||''),destination:String(input.destination||input.dest||''),destination_en:String(input.destination_en||''),destination_tc:String(input.destination_tc||input.destination||''),lat,lng};
+ return {operator,route,direction,stop_id,service_type,name:String(input.name||input.stop_name||'Bus stop'),name_en:String(input.name_en||''),name_tc:String(input.name_tc||input.name||''),shared_stop_id:String(input.shared_stop_id||''),destination:String(input.destination||input.dest||''),destination_en:String(input.destination_en||''),destination_tc:String(input.destination_tc||input.destination||''),lat,lng};
 }
 const localizedStop = x => state.lang==='en'?(x.name_en||(/[^\u0000-\u007F]/.test(x.name||'')?'Loading English name…':x.name)||'Stop name unavailable'):(x.name_tc||x.name||'巴士站');
 const localizedDestination = x => state.lang==='en'?(x.destination_en||x.destination||'Destination'):(x.destination_tc||x.destination||'目的地');
@@ -242,6 +243,7 @@ function settings(){return `${line('Preferences','Choose your language and start
  <div class="card settings-preferences"><div class="card-title">Interface language</div><div class="settings-options"><button class="ghost-button ${state.lang==='en'?'selected-language':''}" data-action="setLanguage" data-value="en">English</button><button class="ghost-button ${state.lang==='tc'?'selected-language':''}" data-action="setLanguage" data-value="tc">繁體中文</button></div>
  <div class="card-title settings-label">Start page</div><div class="settings-options settings-start">${[['nearby','Nearby'],['favourites','Favourites'],['browse','Routes']].map(([id,label])=>`<button class="ghost-button ${state.startPage===id?'selected-language':''}" data-action="setStartPage" data-value="${id}">${label}</button>`).join('')}</div><p class="small-note">This page opens when you launch the dashboard. Your choice is saved on this device.</p></div>
  ${line('App information','Bus data and maintenance')}
+ <div class="card"><div class="card-title">Joint-route stop mapping</div><p class="small-note">${state.stopLinkStatus.loaded?(state.lang==='tc'?`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} 條聯營路線 · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} 組跨公司巴士站配對 · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} 條未能確認`:`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} joint routes · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} operator stop pairs · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} unresolved`):(state.lang==='tc'?'尚未載入配對資料 — 使用保守配對模式 (':'Not loaded — using conservative matching (')+esc(state.stopLinkStatus.error||'Check stop-links.json')+')'}</p></div>
  <div class="card"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:16px">${esc(state.catalogueDate||'Not loaded')}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:16px">${esc(hkTime())}</div></div></div><p class="small-note">Stop data is used for discovery. Official operator lists verify boarding stops.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div>
  <div class="card"><div class="card-title">Favourites backup</div><p class="small-note">Favourites are stored in this browser. Export a backup before clearing Safari data or changing devices.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">${fmt(state.favourites.length)} saved</p></div>
  <div class="card"><div class="card-title">Diagnostics</div><p class="small-note">Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.</p><div class="buttons"><button class="ghost-button" data-action="clearETAs">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div>`;}
@@ -371,7 +373,7 @@ async function officialGroup(g){
  const match=new Map(g.items.map(it=>[it.operator+'|'+it.direction+'|'+it.stop_id,it]));
  const merged=new Map();for(const record of raw){const key=record.operator+'|'+record.route+'|'+record.direction+'|'+record.stop_id;if(!merged.has(key)){
   const m=match.get(record.operator+'|'+record.direction+'|'+record.stop_id);
-  merged.set(key,{...record,name:m?.name||'',name_en:m?.name_en||'',name_tc:m?.name_tc||m?.name||'',lat:m?.lat??null,lng:m?.lng??null,destination:g.destination,destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination});
+  merged.set(key,{...record,name:m?.name||'',name_en:m?.name_en||'',name_tc:m?.name_tc||m?.name||'',lat:m?.lat??null,lng:m?.lng??null,shared_stop_id:m?.shared_stop_id||'',destination:g.destination,destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination});
  }}
  const items=[...merged.values()];
  // Populate from persistent stop details without waiting for network requests.
@@ -400,6 +402,56 @@ async function resolveStopDetails(data,g,token){
   drawStopPicker(token);
  }
 }
+// Government-anchor links are generated by make_stop_links.py from audit v3.
+// The key includes each operator's NATIVE route direction, because CTB and KMB
+// often invert O/I on jointly operated routes. Keep native IDs for ETA calls.
+const nativeLinkKey=it=>[it.route,it.operator,it.direction,it.stop_id].join('|');
+function officialCrossLink(a,b){
+ if(a.route!==b.route||a.operator===b.operator)return false;
+ const k1=state.stopLinkLookup.get(nativeLinkKey(a));
+ const k2=state.stopLinkLookup.get(nativeLinkKey(b));
+ if(k1!==nativeLinkKey(b)||k2!==nativeLinkKey(a))return false;
+ // If the current stop details differ materially from the audited locations,
+ // fail closed and leave the poles separate; do not accidentally link road sides.
+ return !(goodPosition(a)&&goodPosition(b)&&distance(a.lat,a.lng,b.lat,b.lng)>170);
+}
+function sameOfficialLinkedStop(item,cluster){
+ if(item.route!==cluster.route)return false;
+ if(cluster.variants.some(v=>v.operator===item.operator&&v.stop_id!==item.stop_id))return false;
+ const other=cluster.variants.filter(v=>v.operator!==item.operator);
+ return other.length>0&&other.every(v=>officialCrossLink(item,v));
+}
+async function loadOfficialStopLinks(){
+ try{
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),7000);
+  let response;
+  try{response=await fetch('./stop-links.json?v=2.8.0',{cache:'no-store',signal:controller.signal});}
+  finally{clearTimeout(timer);}
+  if(!response.ok)throw Error('HTTP '+response.status);
+  const doc=await response.json();
+  if(doc.schema_version!==1||doc.mode!=='all_joint_routes'||!doc.coverage||!Array.isArray(doc.links)||doc.links.length<1||doc.coverage.accepted_stop_pairs!==doc.links.length||doc.coverage.attempted_joint_routes!==doc.coverage.discovered_joint_routes)
+   throw Error('Invalid stop-links.json schema');
+  const mapped=new Map();
+  for(const pair of doc.links){
+   const route=clean(pair.route),kmb=pair.kmb,ctb=pair.ctb;
+   if(!/^[A-Z0-9]{1,7}$/.test(route)||!kmb||!ctb||
+      !['O','I'].includes(kmb.direction)||!['O','I'].includes(ctb.direction)||
+      !/^[0-9A-F]{16}$/.test(kmb.stop_id)||!/^\d{6}$/.test(ctb.stop_id)||
+      !Number.isFinite(Number(pair.operator_gap_m))||Number(pair.operator_gap_m)>150)continue;
+   const ka=[route,'KMB',kmb.direction,kmb.stop_id].join('|');
+   const kb=[route,'CTB',ctb.direction,ctb.stop_id].join('|');
+   if(mapped.has(ka)&&mapped.get(ka)!==kb)throw Error('Conflicting KMB mapping');
+   if(mapped.has(kb)&&mapped.get(kb)!==ka)throw Error('Conflicting Citybus mapping');
+   mapped.set(ka,kb);mapped.set(kb,ka);
+  }
+  if(!mapped.size)throw Error('No valid cross-operator links');
+  state.stopLinkLookup=mapped;
+  state.stopLinkStatus={loaded:true,coverage:doc.coverage};
+  if(state.view==='settings')render();
+  return true;
+ }catch(err){state.stopLinkStatus={loaded:false,error:err.message};if(state.view==='settings')render();console.warn('Network stop mapping unavailable; retaining conservative matching:',err.message);return false;}
+}
 // Operator stop IDs can differ even for the same boarding landmark. A pair may
 // have separated poles (e.g. the two Mary Court stops), so proximity alone is
 // insufficient. Require the SAME verified route and physical direction (the
@@ -420,11 +472,26 @@ function commonStopLandmark(a,b){
  return aName.length>=3&&aName===bName;
 }
 function sameBoardingLandmark(item,cluster){
+ // Official mapped pairs take precedence over heuristic name/proximity matching.
+ // Do not let an unmatched official stop accidentally absorb a mapped neighbour.
+ for(const v of cluster.variants){
+  if(v.operator!==item.operator &&
+     (state.stopLinkLookup.has(nativeLinkKey(item))||state.stopLinkLookup.has(nativeLinkKey(v))) &&
+     !officialCrossLink(item,v))return false;
+ }
+ if(sameOfficialLinkedStop(item,cluster))return true;
  if(!goodPosition(item)||!cluster.variants.every(goodPosition))return false;
  if(cluster.route!==item.route)return false; // all variants were verified for the same physical route group
  // Allow duplicate service types for the exact same operator stop, but not
  // distinct stop IDs from the same operator.
  if(cluster.variants.some(v=>v.operator===item.operator&&v.stop_id!==item.stop_id))return false;
+ // A common HKBus aggregate ID is evidence of a shared boarding landmark.
+ // Both variants must be officially verified members of the same journey.
+ // Keep a conservative geographic guard: an aggregator mismatch must not
+ // combine boarding poles hundreds of metres apart.
+ const aggregateID=String(item.shared_stop_id||'');
+ if(aggregateID && cluster.variants.every(v=>
+    v.operator===item.operator || (v.shared_stop_id===aggregateID && distance(item.lat,item.lng,v.lat,v.lng)<=200)))return true;
  return cluster.variants.every(v=>{
   const separation=distance(item.lat,item.lng,v.lat,v.lng);
   if(v.operator===item.operator)return v.stop_id===item.stop_id&&separation<=20;
@@ -435,12 +502,16 @@ function clusterStops(items,g){
  const ordered=items.slice().sort((a,b)=>a.seq-b.seq||a.operator.localeCompare(b.operator));
  const clusters=[];
  for(const it of ordered){
-  let found=clusters.find(s=>sameBoardingLandmark(it,s));
+  let found=clusters.find(s=>sameOfficialLinkedStop(it,s))||clusters.find(s=>sameBoardingLandmark(it,s));
   if(found){
    if(!found.variants.some(v=>itemID(v)===itemID(it)))found.variants.push(it);
    found.seq=Math.min(found.seq,it.seq);
    if(!found.name_en&&it.name_en)found.name_en=it.name_en;
    if(!found.name_tc&&it.name_tc)found.name_tc=it.name_tc;
+   // Citybus provides useful mixed-case English stop names with road context.
+   // Keep different native stop IDs internally for accurate ETA requests.
+   if(it.operator==='CTB'&&it.name_en){found.name_en=it.name_en;
+    if(it.name_tc)found.name_tc=it.name_tc; found.name=it.name_tc||it.name||found.name;}
   }else clusters.push({route:g.route,direction:g.direction,destination:g.destination,
     name:it.name||'Loading stop name…',name_en:it.name_en||'',name_tc:it.name_tc||it.name||'',
     destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination,
@@ -474,6 +545,8 @@ async function openGroup(key){
   state.currentGroup=group;
   $('#modalTitle').textContent=group.route+' · '+(group.direction==='I'?'Inbound':group.direction==='O'?'Outbound':group.operators.join(' / '));
   $('#modalBody').innerHTML='<p class="hint loading">Checking verified operator stop lists…</p>';
+  await stopLinksReady;
+  if(token!==state.dialogToken)return;
   const data=await officialGroup(group);
   if(token!==state.dialogToken)return;
   state.verified=data.stops;state.routeFailures=data.warnings;state.loadingNames=data.missing.length;
@@ -594,12 +667,12 @@ async function indexedGet(key){try{const db=await new Promise((yes,no)=>{const r
 async function indexedPut(key,value){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
  await new Promise((yes,no)=>{const tx=db.transaction('data','readwrite');tx.objectStore('data').put(value,key);tx.oncomplete=()=>{db.close();yes();};tx.onerror=()=>no(tx.error);});}catch{/* Site catalogue still works this session. */}}
 function applyCatalogue(entries,date){state.catalogue=entries;state.groups=makeGroups(entries);state.catalogueDate=date||'Unknown';render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&!state.demo){if(state.position)populateNearby();else if(!state.locationRequested){state.locationRequested=true;locate();}}}
-async function loadCatalogue(){const saved=await indexedGet('catalogue_v3');if(saved&&Array.isArray(saved.entries)){applyCatalogue(saved.entries,saved.date);}
+async function loadCatalogue(){const saved=await indexedGet('catalogue_v4');if(saved&&Array.isArray(saved.entries)){applyCatalogue(saved.entries,saved.date);}
  // Avoid fetching/parsing the full 14 MB catalogue on every launch.
  if(saved?.fetchedAt&&Date.now()-saved.fetchedAt<6*3600000)return;
- try{const res=await fetch('./catalogue.json',{cache:'default'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut('catalogue_v3',{entries,date:state.catalogueDate,fetchedAt:Date.now()});}
+ try{const res=await fetch('./catalogue.json',{cache:'default'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut('catalogue_v4',{entries,date:state.catalogueDate,fetchedAt:Date.now()});}
  catch(e){if(!state.catalogue.length)banner('Could not load catalogue.json: '+e.message+'. Import the JSON file in Settings.');}}
-async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut('catalogue_v3',{entries,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
+async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut('catalogue_v4',{entries,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
 async function importFavourites(file){try{const json=JSON.parse(await file.text()),arr=Array.isArray(json)?json:Object.values(json);const previous=state.favourites;state.favourites=[...previous,...arr];restoreFavs();state.favourites=[...new Map(state.favourites.map(f=>[favID(f),f])).values()];persist('hkbus_favourites_v2',state.favourites);render();banner('Favourites imported.');}catch(e){banner('Import failed: '+e.message);}}
 let inputTimer;
 document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);if(state.query.trim()&&routeResults().length<=4&&routeResults().every(g=>g.route===clean(state.query))){const result=$('#routeResults');result?.scrollIntoView({block:'nearest',behavior:'smooth'});void ensurePhysicalRoute(clean(state.query));}},160);}});
@@ -633,4 +706,5 @@ $('#refreshButton').addEventListener('click',()=>{state.etas.clear();state.route
 $('#closeModal').addEventListener('click',closeDialog);
 $('#modalScrim').addEventListener('click',e=>{if(e.target.id==='modalScrim')closeDialog();});
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
+const stopLinksReady=loadOfficialStopLinks();
 render();if(state.view==='nearby'&&!state.demo){state.locationRequested=true;locate();}loadCatalogue();
