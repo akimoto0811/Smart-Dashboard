@@ -7,7 +7,7 @@ const persist = (key, value) => {try {localStorage.setItem(key, JSON.stringify(v
 const operators = ['KMB','LWB','CTB'];
 const names = {KMB:'KMB',LWB:'Long Win',CTB:'Citybus'};
 const hkTime = () => new Intl.DateTimeFormat('en-HK',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
-const hkDate = () => new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric'}).format(new Date());
+const hkDate = () => new Intl.DateTimeFormat(state.lang==='tc'?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric'}).format(new Date());
 const distance = (a,b,c,d) => {const rad=Math.PI/180, x=(c-a)*rad, y=(d-b)*rad*Math.cos((a+c)/2*rad);return Math.round(Math.hypot(x,y)*6371000);};
 const fmt = value => Number(value||0).toLocaleString('en-HK');
 const present = value => Number.isFinite(Number(value)) && value!==null && value!=='';
@@ -21,7 +21,144 @@ const demoStops = [
  {route:'102',direction:'O',destination:'美孚',name:'西灣河文娛中心, 筲箕灣道',variants:[{operator:'CTB',route:'102',direction:'O',stop_id:'001303',service_type:'1',name:'西灣河文娛中心, 筲箕灣道',lat:22.281794,lng:114.222021}]},
  {route:'960',direction:'O',destination:'灣仔',name:'Example stop',variants:[{operator:'KMB',route:'960',direction:'O',stop_id:'B8B04CD1E568B8F6',service_type:'1',name:'Example stop',lat:22.281,lng:114.158}]}
 ];
-const state = {view:'nearby',demo:storage('hkbus_demo',false),catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false};
+const START_PAGES=['nearby','favourites','browse'];
+const savedStartPage=storage('hkbus_start_page','nearby');
+const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:storage('hkbus_demo',false),catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false};
+// UI translations only. Route numbers/IDs and stored JSON keys are never translated.
+const UI_ZH = {
+ 'Hong Kong ·':'香港 ·', 'HONG KONG ·':'香港 ·',
+ 'Nearby':'附近','Nearby Stops':'附近巴士站','Favourites':'收藏','Routes':'路線','Settings':'設定',
+ 'Services around your location':'搜尋附近巴士路線','Your frequently used journeys':'常用巴士路線',
+ 'Find a Route':'搜尋路線','One entry per route and direction':'按路線及方向顯示','Catalogue, data and permissions':'資料及偏好設定',
+ 'LIVE MODE':'即時模式','DEMO PREVIEW':'示範模式','Go live':'使用即時資料','Preview UI':'預覽介面',
+ 'Sample data · not live':'示範資料 · 非即時','Routes and directions':'路線及方向','Route number or stop name':'路線號碼或巴士站名稱',
+ 'Showing matching routes and directions.':'顯示符合搜尋條件的路線及方向。',
+ 'No matching routes. Try another number or stop name.':'找不到符合的路線，請輸入其他路線號碼或站名。',
+ 'Showing the first 100 results; refine your search.':'只顯示首 100 項，請縮窄搜尋範圍。',
+ 'Enter a route number to find its direction and verified stops.':'輸入路線號碼，查找行車方向及已核實的巴士站。',
+ 'All':'全部','Inbound':'回程','Outbound':'去程','Long Win':'龍運','Citybus':'城巴','KMB':'九巴',
+ 'Nearby bus services':'附近巴士路線','Locate me':'定位','Routes near you':'附近路線',
+ 'No routes yet. Allow Safari location access while in Hong Kong.':'暫未找到路線，請在香港使用時允許 Safari 讀取位置。',
+ 'Checking your location… Tap Locate me if needed':'正在定位… 如有需要請按「定位」',
+ 'Illustration only':'僅供示範','ETA':'到站時間','No ETA':'暫無預報','Error':'錯誤','Due':'即將到站',
+ 'Saved bus stops':'已收藏巴士站','Your chosen route, direction and boarding stop':'已儲存的路線、方向及上車站',
+ 'No favourites saved. Add one from Routes or Nearby.':'尚未收藏巴士站，可從「路線」或「附近」新增。',
+ 'Add a favourite':'新增收藏','Export backup':'匯出備份',
+ 'Preferences':'偏好設定','Choose your language and start page':'選擇介面語言及啟動畫面',
+ 'Interface language':'介面語言','English':'English','繁體中文':'繁體中文','Start page':'啟動畫面',
+ 'This page opens when you launch the dashboard. Your choice is saved on this device.':'每次開啟本網站都會先顯示所選頁面；設定只儲存在此裝置。',
+ 'App information':'應用程式資訊','Bus data and maintenance':'巴士資料與維護',
+ 'Bus catalogue':'巴士站資料庫','Route-stop records':'路線與巴士站紀錄','Routes / directions':'路線／方向數目',
+ 'Last generated':'資料更新日期','Hong Kong time':'香港時間','Not loaded':'尚未載入',
+ 'Stop data is used for discovery. Official operator lists verify boarding stops.':'巴士站資料用於搜尋；上車站以巴士公司的官方路線資料核實。',
+ 'Import catalogue JSON':'匯入巴士站 JSON','Favourites backup':'收藏備份',
+ 'Favourites are stored in this browser. Export a backup before clearing Safari data or changing devices.':'收藏只儲存在此瀏覽器。清除 Safari 資料或更換裝置前請先匯出備份。',
+ 'Import favourites':'匯入收藏','Export favourites':'匯出收藏','Diagnostics':'系統診斷',
+ 'Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.':'即時到站資料由九巴及城巴公開 API 提供；如有連線錯誤，會顯示錯誤而非猜測到站時間。',
+ 'Clear ETA cache':'清除到站快取','Clear favourites':'清除所有收藏',
+ 'Loading…':'載入中…','Loading stop name…':'正在載入站名…','Loading English name…':'正在載入英文站名…',
+ 'Stop name unavailable':'無法取得站名','Checking KMB / Citybus official stop lists…':'正在查閱九巴／城巴官方站點資料…',
+ 'Try again':'重試','Select your boarding stop':'選擇上車站',
+ 'No verified stops available for this service.':'此路線目前沒有已核實的巴士站。',
+ 'Upcoming bus arrivals':'即將抵站班次','Loading arrival predictions…':'正在載入到站預報…',
+ 'No ETA currently predicted for this verified stop.':'此站暫時沒有預計到站時間。',
+ 'Requesting real-time arrivals from official operators…':'正在向巴士公司取得即時到站資料…',
+ 'Demo sample only — arrival predictions are not live.':'僅供示範，非即時到站資料。',
+ 'No ETA predicted by the operator for this verified stop right now. This is not necessarily a cancelled service.':'巴士公司暫未提供此站的預計到站時間，並不代表服務取消。',
+ 'API unavailable:':'API 暫時無法使用：','Some operators unavailable:':'部分巴士公司資料暫時無法使用：',
+ 'Some operators could not be loaded:':'部分巴士公司資料無法載入：',
+ 'Cannot verify route stops:':'無法核實路線站點：','API request error:':'API 請求錯誤：',
+ 'Check your network or browser API permissions.':'請檢查網絡及瀏覽器 API 權限。',
+ 'Next bus arrivals · HK time':'下一班巴士 · 香港時間',
+ 'Other stops on this route':'此路線其他巴士站',
+ 'Add favourite':'加入收藏','Remove favourite':'移除收藏','Refresh':'重新整理',
+ 'min':'分鐘','now':'即將抵站','saved':'項已收藏',
+ 'Bus arrivals':'巴士到站','Your favourites':'我的收藏',
+ 'Import failed:':'匯入失敗：','Import catalogue failed:':'資料庫匯入失敗：',
+ 'GPS is not available. Open the HTTPS dashboard in Safari.':'無法使用 GPS，請以 Safari 開啟 HTTPS 網址。',
+ 'Requesting iPhone location…':'正在取得 iPhone 位置…',
+ 'Safari location permission denied.':'Safari 位置權限已被拒絕。',
+ 'Current position unavailable.':'無法取得目前位置。','Location request timed out.':'定位逾時。',
+ 'You appear to be outside Hong Kong; Nearby needs a Hong Kong GPS position.':'目前位置似乎不在香港；附近路線功能只支援香港。',
+ 'Location found. Loading the stop catalogue…':'已定位，正在載入巴士站資料…',
+ 'Demo mode uses illustrative arrival times.':'示範模式顯示模擬到站時間。',
+ 'Live mode active. Choose a route and boarding stop.':'已切換至即時模式，請選擇路線及上車站。',
+ 'Switch to Live mode to use GPS.':'請切換至即時模式以使用 GPS。',
+ 'Switch to Live mode to save favourites.':'請切換至即時模式以儲存收藏。',
+ 'ETA cache cleared.':'已清除到站快取。','Favourites cleared.':'已清除收藏。',
+ 'Favourites imported.':'已匯入收藏。','Stop catalogue':'巴士站資料庫',
+ 'Export':'匯出','Import':'匯入','Routes near you':'附近路線',
+ 'No routes found':'找不到路線', 'Bus stop':'巴士站','ETA ›':'到站 ›',
+ 'Remove all saved favourites on this browser?':'確定要刪除此瀏覽器所有收藏嗎？',
+ 'Refresh arrivals':'更新到站資料','Close':'關閉'
+};
+const UI_EN_FROM_ZH=Object.fromEntries(Object.entries(UI_ZH).map(([en,zh])=>[zh,en]));
+function translatePhrase(s){
+ const t=s.trim(); if(!t)return s;
+ const lookup=(v)=>state.lang==='tc'?UI_ZH[v]:UI_EN_FROM_ZH[v];
+ let translated=lookup(t);
+ if(!translated && state.lang==='tc'){
+  const rules=[
+   [/^HONG KONG · (.+)$/,(m,date)=>'香港 · '+date],
+   [/^HK time (.+)$/,(m,v)=>'香港時間 '+v],
+   [/^(\d+) grouped results?$/,(m,n)=>n+' 個路線組合'],
+   [/^(Outbound|Inbound) · (\d+) stop records$/,(m,d,n)=>(UI_ZH[d]||d)+' · '+n+' 個站點紀錄'],
+   [/^(Outbound|Inbound)$/,(m,d)=>UI_ZH[d]],
+   [/^(\d+) route \/ direction groups$/,(m,n)=>n+' 組路線／方向'],
+   [/^(\d+) nearby route-stop entries$/,(m,n)=>n+' 項附近巴士站紀錄'],
+   [/^GPS accuracy ±(\d+)m · (\d+) (?:matching |nearby )?route-stop entries$/,(m,n,z)=>'GPS 精確度 ±'+n+' 米 · '+z+' 項巴士站紀錄'],
+   [/^(\d+) stop names are being verified in the background\.$/,(m,n)=>'正在背景核實 '+n+' 個站名。'],
+   [/^(\d+) saved$/,(m,n)=>n+' 項已收藏'],
+   [/^(\d+) m$/,(m,n)=>n+' 米'],
+   [/^ · (\d+) m$/,(m,n)=>' · '+n+' 米'],
+   [/^(\d+) min$/,(m,n)=>n+' 分鐘'],
+   [/^(.+) · Select your boarding stop$/,(m,d)=>d+' · 選擇上車站'],
+   [/^(.+) · (Outbound|Inbound)$/,(m,a,d)=>a+' · '+UI_ZH[d]],
+   [/^(.+) · (Outbound|Inbound) · (.*)$/,(m,a,d,b)=>a+' · '+UI_ZH[d]+' · '+b],
+   [/^Some operators could not be loaded: (.*)$/,(m,x)=>'部分巴士公司資料無法載入：'+x],
+   [/^No ETA currently predicted for this verified stop\.$/,(m)=>UI_ZH[m]],
+   [/^([\d,]+) route-stop records imported\.$/,(m,n)=>'已匯入 '+n+' 項站點紀錄。'],
+   [/^Imported ([\d,]+) route-stop records\.$/,(m,n)=>'已匯入 '+n+' 項站點紀錄。']
+  ];
+  for(const [p,fun] of rules){const found=t.match(p);if(found){translated=fun(...found);break;}}
+  if(!translated) {
+   const partials=[[' · HK time ',' · 香港時間 '],[' · Outbound',' · 去程'],[' · Inbound',' · 回程'],[' · Citybus',' · 城巴'],[' · Long Win',' · 龍運'],[' stop records',' 個站點紀錄'],[' m away',' 米'],[' m',' 米']];
+   let adjusted=t;
+   for(const [en,zh] of partials)adjusted=adjusted.replaceAll(en,zh);
+   if(adjusted!==t)translated=adjusted;
+  }
+ }
+ if(!translated)return s;
+ const front=s.slice(0,s.indexOf(t));return front+translated+s.slice(s.indexOf(t)+t.length);
+}
+function localizeDocument(){
+ document.documentElement.lang=state.lang==='tc'?'zh-Hant-HK':'en';
+ for(const root of [document.querySelector('.app-shell'),document.querySelector('#modalScrim')]){
+  if(!root)return;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  let n;
+  while((n=walker.nextNode())){
+   if(n.parentElement?.closest('script,style,input,textarea'))continue;
+   const updated=translatePhrase(n.nodeValue);
+   if(n.nodeValue!==updated)n.nodeValue=updated;
+  }
+  for(const el of root.querySelectorAll('[placeholder],[aria-label],[title]')){
+   for(const attr of ['placeholder','aria-label','title'])if(el.hasAttribute(attr)){
+    const old=el.getAttribute(attr),value=translatePhrase(old);
+    if(value!==old)el.setAttribute(attr,value);
+   }
+  }
+ }
+}
+let i18nQueued=false;
+const i18nObserver=new MutationObserver(()=>{
+ if(state.lang!=='tc')return;
+ if(i18nQueued)return;
+ i18nQueued=true;
+ queueMicrotask(()=>{i18nQueued=false;localizeDocument()});
+});
+i18nObserver.observe(document.body,{subtree:true,childList:true,characterData:true});
+
 state.favourites = Array.isArray(state.favourites)?state.favourites:[];
 function normalize(input){
  if(!input || typeof input!=='object')return null;
@@ -74,21 +211,25 @@ const operatorChips = ops => `<span class="operators">${ops.map(x=>`<span class=
 function groupRows(groups){return groups.map((g,i)=>`<button class="route-group" data-action="openGroup" data-group="${esc(g.key)}">
  <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(localizedDestination(g))}</strong><span class="group-meta">${g.direction==='O'?'Outbound':'Inbound'} · ${fmt(g.stopCount)} stop records</span>${operatorChips(g.operators)}</span><span class="group-arrow">›</span></button>`).join('');}
 function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedDestination(f))}</strong><span class="group-meta">${esc(localizedStop(f))} · ${f.direction==='O'?'Outbound':'Inbound'}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span><span class="group-arrow">›</span></button>`).join('');}
-function overview(){const fs=state.demo?demoStops:state.favourites;
- return `<div class="card"><div class="hero-kicker"><span>Bus arrivals</span><span class="mint-tag">${state.demo?'DEMO':'LIVE'}</span></div><div class="hero-minutes">${fmt(fs.length)}<span>saved stops</span></div><div class="hero-description">Select a saved stop to retrieve the next arrivals. Predictions are requested from the operator.</div><div class="stat-grid"><div class="stat"><div class="label">Catalogue routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:19px">${esc(hkTime())}</div></div></div></div>${line('Your favourites','Tap a stop to check live arrivals')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites yet. Find a route and save your boarding stop.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Find a bus route</button><button class="ghost-button" data-view="nearby">Nearby stops</button></div>`;}
 function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Your chosen route, direction and boarding stop')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
 function browse(){const q=state.query.trim(), groups=q?routeResults():[], exact=q&&groups.length>0&&groups.every(g=>g.route===clean(q));
  return `<div class="card search-card"><label class="card-title" for="routeSearch">Route number or stop name</label><input id="routeSearch" class="field" autocomplete="off" enterkeyhint="search" placeholder="e.g. 102 or Central" value="${esc(state.query)}"/>${q&&!exact?'<p class="small-note search-hint">Showing matching routes and directions.</p>':''}</div><div class="operator-row route-filters">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div><section id="routeResults" class="route-results">${q?`${line('Routes and directions',`${fmt(groups.length)} grouped result${groups.length===1?'':'s'}`)}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,100)):'<div class="empty">No matching routes. Try another number or stop name.</div>'}</div>${groups.length>100?'<p class="small-note">Showing the first 100 results; refine your search.</p>':''}`:'<div class="search-empty">Enter a route number to find its direction and verified stops.</div>'}</section>`;}
 function nearby(){const candidates=state.demo?demoStops.flatMap(f=>f.variants):state.nearby;
- const groups=makeGroups(candidates);groups.sort((a,b)=>(a.nearestDistance??Infinity)-(b.nearestDistance??Infinity));
- return `<div class="card"><div class="card-title">Nearby bus services</div><p class="hint">Find routes within walking distance. Choose a direction, then your boarding stop.</p><div class="input-row"><select class="select" id="radiusSelect">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select><button class="primary-button" data-action="locate">⌖ Locate me</button></div>${state.position?`<p class="small-note">GPS accuracy ±${Math.round(state.position.accuracy)}m · ${fmt(candidates.length)} matching route-stop entries</p>`:''}</div>${line('Routes near you',state.demo?'Illustration only':state.position?`${fmt(groups.length)} route / direction groups`:'Checking your location… Tap Locate me if needed')}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,90)):'<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>'}</div>`;}
-function settings(){return `${line('Data and preferences','Stored on this browser unless exported')}<div class="card"><div class="card-title">Stop name language</div><div class="buttons"><button class="ghost-button ${state.lang==='en'?'selected-language':''}" data-action="setLanguage" data-value="en">English</button><button class="ghost-button ${state.lang==='tc'?'selected-language':''}" data-action="setLanguage" data-value="tc">繁體中文</button></div><p class="small-note">English is the default. Official operator names are used when available.</p></div><div class="card"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:17px">${esc(state.catalogueDate||'Not loaded')}</div></div></div><p class="hint">The catalogue is for route and GPS discovery. Before showing bus times, the dashboard verifies stop membership using official KMB/Citybus route-stop APIs.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div><div class="card"><div class="card-title">Favourites backup</div><p class="hint">Saved only in this browser. Export before clearing Safari site data or switching devices.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">${fmt(state.favourites.length)} saved</p></div><div class="card"><div class="card-title">Diagnostics</div><p class="hint">KMB/LWB and Citybus public APIs are queried directly. A network/CORS failure is reported explicitly, never displayed as a missing bus.</p><div class="buttons"><button class="ghost-button" data-action="clearETAs">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div>`;}
-function render(){const titles={overview:['Overview','Your bus arrivals at a glance'],favourites:['Favourites','Your frequently used journeys'],nearby:['Nearby Stops','Services around your location'],browse:['Find a Route','One entry per route and direction'],settings:['Settings','Catalogue, data and permissions']};
+ const groups=makeGroups(candidates);groups.forEach(g=>{g.nearestDistance=Math.min(...g.items.map(x=>state.position&&goodPosition(x)?distance(state.position.lat,state.position.lng,x.lat,x.lng):Infinity));});groups.sort((a,b)=>(a.nearestDistance??Infinity)-(b.nearestDistance??Infinity));
+ return `<div class="card nearby-controls"><div class="nearby-heading">Nearby bus services</div><div class="input-row"><select class="select" id="radiusSelect">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select><button class="primary-button" data-action="locate">⌖ Locate me</button></div>${state.position?`<p class="small-note">GPS accuracy ±${Math.round(state.position.accuracy)}m · ${fmt(candidates.length)} nearby route-stop entries</p>`:''}</div>${line('Routes near you',state.demo?'Illustration only':state.position?`${fmt(groups.length)} route / direction groups`:'Checking your location… Tap Locate me if needed')}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,90)):'<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>'}</div>`;}
+function settings(){return `${line('Preferences','Choose your language and start page')}
+ <div class="card settings-preferences"><div class="card-title">Interface language</div><div class="settings-options"><button class="ghost-button ${state.lang==='en'?'selected-language':''}" data-action="setLanguage" data-value="en">English</button><button class="ghost-button ${state.lang==='tc'?'selected-language':''}" data-action="setLanguage" data-value="tc">繁體中文</button></div>
+ <div class="card-title settings-label">Start page</div><div class="settings-options settings-start">${[['nearby','Nearby'],['favourites','Favourites'],['browse','Routes']].map(([id,label])=>`<button class="ghost-button ${state.startPage===id?'selected-language':''}" data-action="setStartPage" data-value="${id}">${label}</button>`).join('')}</div><p class="small-note">This page opens when you launch the dashboard. Your choice is saved on this device.</p></div>
+ ${line('App information','Bus data and maintenance')}
+ <div class="card"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:16px">${esc(state.catalogueDate||'Not loaded')}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:16px">${esc(hkTime())}</div></div></div><p class="small-note">Stop data is used for discovery. Official operator lists verify boarding stops.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div>
+ <div class="card"><div class="card-title">Favourites backup</div><p class="small-note">Favourites are stored in this browser. Export a backup before clearing Safari data or changing devices.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">${fmt(state.favourites.length)} saved</p></div>
+ <div class="card"><div class="card-title">Diagnostics</div><p class="small-note">Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.</p><div class="buttons"><button class="ghost-button" data-action="clearETAs">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div>`;}
+function render(){const titles={favourites:['Favourites','Your frequently used journeys'],nearby:['Nearby Stops','Services around your location'],browse:['Find a Route','One entry per route and direction'],settings:['Settings','Catalogue, data and permissions']};
  const [title,desc]=titles[state.view];$('#pageTitle').textContent=title;$('#pageCaption').textContent=desc;
  $('#todayLabel').textContent='HONG KONG · '+hkDate().toUpperCase();$('#modeBadge').textContent=state.demo?'DEMO PREVIEW':'LIVE MODE';$('#modeBadge').classList.toggle('demo',state.demo);$('#modeButton').textContent=state.demo?'Go live':'Preview UI';$('#syncLabel').textContent=state.demo?'Sample data · not live':'HK time '+hkTime();
  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.toggle('selected',el.dataset.view===state.view));
- $('#mainContent').innerHTML=({overview,favourites,nearby,browse,settings}[state.view]||overview)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));}
-function setView(view){state.view=view;banner('');render();scrollTo({top:0,behavior:'instant'});}
+ $('#mainContent').innerHTML=({favourites,nearby,browse,settings}[state.view]||nearby)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));localizeDocument();}
+function setView(view){state.view=view;banner('');render();scrollTo({top:0,behavior:'instant'});if(view==='nearby'&&!state.demo&&state.catalogue.length){if(state.position)populateNearby();else locate();}}
 async function requestJSON(url,limit=13000){const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),limit);try{const res=await fetch(url,{cache:'no-store',signal:ctrl.signal});if(!res.ok)throw Error('API HTTP '+res.status);return await res.json();}catch(err){if(err.name==='AbortError')throw Error('API request timed out');throw err;}finally{clearTimeout(timeout);}}
 // The operator's current route-stop list is authoritative. Catalogue mappings are NOT.
 function officialListURL(op,route,direction,service){const bound=direction==='I'?'inbound':'outbound';return op==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/${encodeURIComponent(route)}/${bound}`:`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${encodeURIComponent(route)}/${bound}/${encodeURIComponent(service||'1')}`;}
@@ -299,6 +440,7 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  const el=e.target.closest('[data-action]');if(!el)return;const action=el.dataset.action;
  if(action==='filterOp'){state.operator=el.dataset.value;render();}
  if(action==='setLanguage'){state.lang=el.dataset.value==='tc'?'tc':'en';persist('hkbus_lang',state.lang);render();}
+ if(action==='setStartPage'){const next=el.dataset.value;if(START_PAGES.includes(next)){state.startPage=next;persist('hkbus_start_page',next);render();}}
  if(action==='openGroup')openGroup(el.dataset.group);
  if(action==='openFavourite')openFavourite(Number(el.dataset.index));
  if(action==='expandStop'){const index=Number(el.dataset.index),s=state.verified[index];if(s){state.expandedStopKey=state.expandedStopKey===stopKey(s)?null:stopKey(s);drawStopPicker(state.dialogToken);if(state.expandedStopKey)void updateRowETA(index,state.dialogToken);}}
@@ -314,7 +456,7 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='importFav')$('#favouritesFile').click();
  if(action==='exportFav')download('hk-bus-favourites.json',state.favourites);
  if(action==='clearETAs'){state.etas.clear();banner('ETA cache cleared.');}
- if(action==='clearFav'&&confirm('Remove all saved favourites on this browser?')){state.favourites=[];persist('hkbus_favourites_v2',[]);banner('Favourites cleared.');render();}
+ if(action==='clearFav'&&confirm(state.lang==='tc'?UI_ZH['Remove all saved favourites on this browser?']:'Remove all saved favourites on this browser?')){state.favourites=[];persist('hkbus_favourites_v2',[]);banner('Favourites cleared.');render();}
 });
 $('#modeButton').addEventListener('click',()=>{state.demo=!state.demo;persist('hkbus_demo',state.demo);state.query='';state.operator='ALL';banner(state.demo?'Demo mode uses illustrative arrival times.':'Live mode active. Choose a route and boarding stop.');render();});
 $('#refreshButton').addEventListener('click',()=>{state.etas.clear();state.routeStops.clear();banner('Caches refreshed.');render();});
