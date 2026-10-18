@@ -9,7 +9,7 @@ const DEMO=[
  {operator:'CTB',route:'11',direction:'I',stop_id:'DEMO02',name:'Example City Stop',destination:'Towards Jardine’s Lookout',service_type:'1',demo_etas:[5,16,28],lat:22.276,lng:114.170},
  {operator:'KMB',route:'1A',direction:'I',stop_id:'DEMO03',name:'Example Kowloon Stop',destination:'Towards Sau Mau Ping',service_type:'1',demo_etas:[8,19,32],lat:22.317,lng:114.173}
 ];
-const state={view:'overview',demo:readStore('hkbus_demo',true),catalogue:[],catalogueDate:'',source:'',favourites:readStore('hkbus_favourites_v2',[]),selected:null,visible:[],operator:'ALL',query:'',nearby:[],location:null,radius:450,etaCache:new Map(),syncing:false,importBusy:false,notice:'',quickOpen:false};
+const state={view:'overview',demo:readStore('hkbus_demo',true),catalogue:[],catalogueDate:'',source:'',favourites:readStore('hkbus_favourites_v2',[]),selected:null,visible:[],operator:'ALL',query:'',nearby:[],location:null,radius:450,etaCache:new Map(),officialRoutes:new Map(),officialStopDetails:new Map(),syncing:false,importBusy:false,notice:'',quickOpen:false};
 state.favourites=Array.isArray(state.favourites)?state.favourites:[];
 const OP=['KMB','LWB','CTB'];
 const hid=it=>`${it.operator}|${it.route}|${it.direction}|${it.stop_id}|${it.service_type||'1'}`;
@@ -71,12 +71,89 @@ if(!state.demo&&['overview','favourites'].includes(state.view))syncFavouriteEtas
 }
 function routeAPI(item){const v=makeItem(item);if(!v)throw Error('Invalid operator, route, stop ID or direction.');const path=encodeURIComponent(v.route);
  return v.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${v.stop_id}/${path}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${v.stop_id}/${path}/${v.service_type}`}
+// The shared third-party catalogue is useful for discovery, but is not a reliable
+// source of *route membership*. Verify unmatched Citybus stops with Citybus's
+// authoritative route-stop endpoint before describing missing ETAs.
+async function officialCTBRouteStops(it){
+ const key=`${it.route}|${it.direction}`;
+ if(!state.officialRoutes.has(key)){
+  const promise=(async()=>{
+   const dir=it.direction==='I'?'inbound':'outbound';
+   const url=`https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/${encodeURIComponent(it.route)}/${dir}`;
+   const response=await fetch(url,{cache:'no-store'});
+   if(!response.ok)throw Error(`Citybus route-stop lookup returned HTTP ${response.status}`);
+   const json=await response.json();
+   if(!Array.isArray(json.data))throw Error('Unexpected Citybus route-stop response');
+   return json.data.filter(x=>x.route===it.route&&x.dir===it.direction&&/^\d{6}$/.test(x.stop||''))
+     .sort((a,b)=>Number(a.seq)-Number(b.seq));
+  })();
+  state.officialRoutes.set(key,promise);
+  promise.catch(()=>{if(state.officialRoutes.get(key)===promise)state.officialRoutes.delete(key)});
+ }
+ return state.officialRoutes.get(key);
+}
+async function officialCTBStopDetail(id){
+ if(!state.officialStopDetails.has(id)){
+  const promise=(async()=>{
+   const response=await fetch(`https://rt.data.gov.hk/v2/transport/citybus/stop/${encodeURIComponent(id)}`,{cache:'force-cache'});
+   if(!response.ok)throw Error(`Stop ${id}: HTTP ${response.status}`);
+   const j=await response.json(),v=j.data;
+   if(!v||v.stop!==id)throw Error(`Stop ${id}: invalid data`);
+   return {stop:id,name:v.name_tc||v.name_en||`Stop ${id}`,lat:Number(v.lat),lng:Number(v.long)};
+  })();
+  state.officialStopDetails.set(id,promise);
+  promise.catch(()=>{if(state.officialStopDetails.get(id)===promise)state.officialStopDetails.delete(id)});
+ }
+ return state.officialStopDetails.get(id);
+}
+async function showOfficialCTBStops(){
+ const it=state.selected, box=$('#modalBody .eta-large');
+ if(!it||it.operator!=='CTB'||!box)return;
+ box.innerHTML='<p class="hint">Loading Citybus verified route stops…</p>';
+ try{
+  const list=await officialCTBRouteStops(it);
+  if(state.selected!==it)return;
+  if(!list.length){box.innerHTML='<div class="notice">No official stops were returned for this direction. Try another direction or route.</div>';return}
+  const details=[];
+  // Limit concurrency so the Citybus API is not flooded with stop requests.
+  for(let start=0;start<list.length;start+=6){
+   const chunk=await Promise.all(list.slice(start,start+6).map(async x=>{
+    try{return {...await officialCTBStopDetail(x.stop),seq:x.seq}}catch{return {stop:x.stop,name:`Stop ${x.stop}`,seq:x.seq,lat:NaN,lng:NaN}}
+   }));
+   details.push(...chunk);
+   if(state.selected!==it)return;
+  }
+  const hasLocation=Number.isFinite(it.lat)&&Number.isFinite(it.lng);
+  const ordered=details.map(x=>({...x,distance:hasLocation&&Number.isFinite(x.lat)&&Number.isFinite(x.lng)?meters(it.lat,it.lng,x.lat,x.lng):null}))
+    .sort((a,b)=>a.distance===null?(b.distance===null?a.seq-b.seq:1):b.distance===null?-1:a.distance-b.distance);
+  const out=ordered.map(x=>`<button class="result-item" data-action="pickOfficialStop" data-stopid="${esc(x.stop)}"><span><span class="result-name">${esc(x.name)}</span><span class="result-sub">Stop ${esc(x.stop)} · #${esc(x.seq)}${x.distance!==null?` · ${esc(x.distance)} m from selected location`:''}</span></span><span class="result-right">Choose ›</span></button>`).join('');
+  box.innerHTML=`<div style="width:100%"><p class="hint">Official Citybus stops for route ${esc(it.route)} (${it.direction==='I'?'Inbound':'Outbound'}). Choose your actual boarding stop. Nearby options appear first.</p><div class="result-list">${out}</div></div>`;
+ }catch(err){if(state.selected===it)box.innerHTML=`<div class="notice">Unable to load Citybus stops: ${esc(err.message)}</div>`}
+}
+async function pickOfficialCTBStop(id){
+ const it=state.selected;
+ if(!it||it.operator!=='CTB')return;
+ try{
+  const valid=await officialCTBRouteStops(it);
+  if(!valid.some(x=>x.stop===id))throw Error('The selected stop is not served by this route');
+  const detail=await officialCTBStopDetail(id);
+  if(state.selected!==it)return;
+  state.selected={...it,stop_id:id,name:detail.name,lat:detail.lat,lng:detail.lng};
+  await updateModal(true);
+ }catch(err){notice(`Unable to select Citybus stop: ${err.message}`)}
+}
 async function fetchETA(it,force=false){const id=hid(it),old=state.etaCache.get(id);if(!force&&old&&Date.now()-old.time<45000)return old;
  const controller=new AbortController(),tm=setTimeout(()=>controller.abort(),12000);
  try{const resp=await fetch(routeAPI(it),{cache:'no-store',signal:controller.signal});if(!resp.ok)throw Error(`Bus API returned HTTP ${resp.status}`);const j=await resp.json();if(!Array.isArray(j.data))throw Error('Bus API returned an unexpected JSON format');
  const dirs=j.data.filter(v=>v.route===it.route&&(!v.dir||v.dir===it.direction)&&v.eta);
  const now=Date.now(),times=dirs.map(v=>Math.ceil((Date.parse(v.eta)-now)/60000)).filter(v=>Number.isFinite(v)&&v>=0&&v<=180).sort((a,b)=>a-b).slice(0,3);
- const result={time:Date.now(),result:times};state.etaCache.set(id,result);return result
+ let invalidStop=false;
+ // Empty ETA data can be legitimate. Check route membership before reporting it.
+ if(!times.length&&it.operator==='CTB'){
+  try{const official=await officialCTBRouteStops(it);invalidStop=official.length>0&&!official.some(x=>x.stop===it.stop_id)}
+  catch{/* Preserve the original empty ETA result if membership cannot be checked. */}
+ }
+ const result={time:Date.now(),result:times,invalidStop};state.etaCache.set(id,result);return result
  }catch(err){const result={time:Date.now(),result:null,error:String(err.name==='AbortError'?'Request timed out':err.message||err)};state.etaCache.set(id,result);return result}finally{clearTimeout(tm)}
 }
 async function syncFavouriteEtas(force=false){if(state.syncing||!state.favourites.length)return;const items=filtered(state.favourites).slice(0,8);if(!force&&items.every(x=>{const v=state.etaCache.get(hid(x));return v&&Date.now()-v.time<45000}))return;
@@ -85,6 +162,9 @@ async function openRoute(it){state.selected=it;$('#modalTitle').textContent=`${i
 async function updateModal(force=false){const it=state.selected;if(!it)return;const div=$('#modalBody'),saved=isFav(it);div.innerHTML=`<div class="detail"><strong>${esc(it.destination)}</strong><p class="hint">${esc(it.name)} · ${esc(it.stop_id)}<br>${it.direction==='I'?'Inbound':'Outbound'} · ${esc(opLabel(it.operator))}</p></div><div class="group-heading">Next three arrivals</div><div class="eta-large"><span class="small-note loading">Fetching arrivals…</span></div><div class="two-buttons"><button class="primary-button" data-action="toggleFav">${saved?'★ Remove favourite':'☆ Add favourite'}</button><button class="ghost-button" data-action="refreshDetail">↻ Refresh</button></div>`;
  const result=state.demo?{result:it.demo_etas||[3,12,24]}:await fetchETA(it,force);if(state.selected!==it||$('#modalScrim').classList.contains('hidden'))return;
  const arr=result.result,box=div.querySelector('.eta-large');if(result.error){box.innerHTML=`<div class="notice">${esc(result.error)}. Network or browser CORS rules may block the request. Try Safari over HTTPS or use the native Shortcut.</div>`}
+ else if(result.invalidStop){box.innerHTML=`<div class="notice">This catalogue stop ID (${esc(it.stop_id)}) is not on Citybus route ${esc(it.route)} in this direction. Select an official stop to get accurate arrival times.</div><button class="primary-button" data-action="showOfficialStops">Find verified Citybus stops</button>`;
+  const favButton=div.querySelector('[data-action="toggleFav"]');if(favButton)favButton.disabled=true;
+ }
  else if(!arr?.length){box.innerHTML='<p class="hint">No ETA predicted at this stop right now. This is not the same as a cancelled service.</p>'}
  else{box.innerHTML=arr.map(n=>`<div class="eta-chip"><strong>${n===0?'Due':esc(n)}</strong><small>${n===0?'now':'minutes'}</small></div>`).join('')}
  if(state.demo)box.insertAdjacentHTML('afterend','<p class="small-note">Demo times only — switch to Live to request the actual API.</p>');
@@ -105,6 +185,8 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(a==='details'){const item=state.visible[Number(el.dataset.idx)];if(item)openRoute(item)}
  else if(a==='refresh'){state.etaCache.clear();syncFavouriteEtas(true);render()}
  else if(a==='refreshDetail')updateModal(true);
+ else if(a==='showOfficialStops')showOfficialCTBStops();
+ else if(a==='pickOfficialStop')pickOfficialCTBStop(el.dataset.stopid);
  else if(a==='toggleFav')toggleFavourite();
  else if(a==='locate')locate();
  else if(a==='operator'){state.operator=el.dataset.value;render()}
