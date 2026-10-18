@@ -35,6 +35,7 @@ def build(db):
   if isinstance(companies,str):companies=[companies]
   dest=row.get('dest') or {}
   destination=str(dest.get('zh') or dest.get('en') or 'Destination not supplied') if isinstance(dest,dict) else str(dest)
+  destination_en=str(dest.get('en') or '') if isinstance(dest,dict) else str(dest)
   allstops=row.get('stops') or {};bounds=row.get('bound') or {};service=str(row.get('serviceType') or '1')
   for rawop in companies:
    rawop=str(rawop).lower();op='CTB' if rawop in ('ctb','nwfb') else rawop.upper()
@@ -47,13 +48,14 @@ def build(db):
     except (KeyError,TypeError,ValueError):continue
     if not(22.0<lat<22.7 and 113.7<lng<114.6):continue
     stopname=str(name.get('zh') or name.get('en') or 'Bus stop') if isinstance(name,dict) else str(name)
+    stopname_en=str(name.get('en') or '') if isinstance(name,dict) else str(name)
     nativeids=[str(pair[1]).upper() for pair in (stopmap.get(sharedid) or []) if isinstance(pair,(list,tuple)) and len(pair)>1 and str(pair[0]).lower()==rawop]
     for stopid in nativeids:
      if op=='CTB' and not(len(stopid)==6 and stopid.isdigit()):continue
      if op!='CTB' and not(len(stopid)==16 and all(c in '0123456789ABCDEF' for c in stopid)):continue
      key=(op,route,direction,stopid,service)
      entries[key]={'operator':op,'route':route,'direction':direction,'stop_id':stopid,'service_type':service,
-                   'name':stopname,'destination':destination,'lat':round(lat,6),'lng':round(lng,6)}
+                   'name':stopname,'name_en':stopname_en,'destination':destination,'destination_en':destination_en,'lat':round(lat,6),'lng':round(lng,6)}
  return list(entries.values())
 
 def main():
@@ -61,7 +63,11 @@ def main():
  operators={x['operator'] for x in entries}
  print(f'Parsed {len(entries):,} route-stop records. Operators: {", ".join(sorted(operators))}')
  if len(entries)<1000 or not {'KMB','CTB'}.issubset(operators):raise RuntimeError('Incomplete catalogue: refusing to replace existing output.')
- data={'schema_version':2,'catalogue_date':datetime.now(timezone.utc).strftime('%Y-%m-%d'),'source':'hkbus/hk-bus-crawling routeFareList.min.json','entries':entries}
+ english_names=sum(bool(it.get('name_en')) for it in entries)
+ english_dests=sum(bool(it.get('destination_en')) for it in entries)
+ print(f'English names: {english_names:,} / {len(entries):,}; English destinations: {english_dests:,} / {len(entries):,}')
+ if english_names<len(entries)*0.7 or english_dests<len(entries)*0.7:raise RuntimeError('Source is missing most English names; refusing to overwrite existing catalogue.')
+ data={'schema_version':3,'catalogue_date':datetime.now(timezone.utc).strftime('%Y-%m-%d'),'source':'hkbus/hk-bus-crawling routeFareList.min.json','entries':entries}
  fd,tmp=tempfile.mkstemp(suffix='.json',prefix='.tmp-hkbus-',dir=OUTPUT.parent)
  try:
   with os.fdopen(fd,'w',encoding='utf8') as f:json.dump(data,f,ensure_ascii=False,separators=(',',':'))
