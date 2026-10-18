@@ -1,214 +1,223 @@
 'use strict';
-/* HK Bus ETA Dashboard · no third-party JS libraries; original API responses only */
-const $=s=>document.querySelector(s);
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const readStore=(key,fallback)=>{try{const v=JSON.parse(localStorage.getItem(key));return v??fallback}catch{return fallback}};
-const store=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value))}catch{}};
-const DEMO=[
- {operator:'KMB',route:'960',direction:'O',stop_id:'DEMO01',name:'Example Central Stop',destination:'Towards Central',service_type:'1',demo_etas:[3,12,24],lat:22.281,lng:114.158},
- {operator:'CTB',route:'11',direction:'I',stop_id:'DEMO02',name:'Example City Stop',destination:'Towards Jardine’s Lookout',service_type:'1',demo_etas:[5,16,28],lat:22.276,lng:114.170},
- {operator:'KMB',route:'1A',direction:'I',stop_id:'DEMO03',name:'Example Kowloon Stop',destination:'Towards Sau Mau Ping',service_type:'1',demo_etas:[8,19,32],lat:22.317,lng:114.173}
+/* HK Bus ETA 2.0. Route-discovery catalogue != authoritative operator route-stop list. */
+const $ = selector => document.querySelector(selector);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const storage = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
+const persist = (key, value) => {try {localStorage.setItem(key, JSON.stringify(value));return true;} catch {return false;}};
+const operators = ['KMB','LWB','CTB'];
+const names = {KMB:'KMB',LWB:'Long Win',CTB:'Citybus'};
+const hkTime = () => new Intl.DateTimeFormat('en-HK',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
+const hkDate = () => new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric'}).format(new Date());
+const distance = (a,b,c,d) => {const rad=Math.PI/180, x=(c-a)*rad, y=(d-b)*rad*Math.cos((a+c)/2*rad);return Math.round(Math.hypot(x,y)*6371000);};
+const fmt = value => Number(value||0).toLocaleString('en-HK');
+const present = value => Number.isFinite(Number(value)) && value!==null && value!=='';
+const latlon = value => present(value) ? Number(value) : null;
+const goodPosition = point => point && point.lat!==null && point.lng!==null && Number.isFinite(point.lat) && Number.isFinite(point.lng) && point.lat>22 && point.lat<22.7 && point.lng>113.7 && point.lng<114.6;
+const clean = x => String(x??'').trim().toUpperCase();
+const itemID = it => [it.operator,it.route,it.direction,it.stop_id,it.service_type||'1'].join('|');
+const groupID = it => it.route+'|'+it.direction;
+const favID = f => groupID(f)+'|'+f.variants.map(itemID).sort().join(',');
+const demoStops = [
+ {route:'102',direction:'O',destination:'美孚',name:'西灣河文娛中心, 筲箕灣道',variants:[{operator:'CTB',route:'102',direction:'O',stop_id:'001303',service_type:'1',name:'西灣河文娛中心, 筲箕灣道',lat:22.281794,lng:114.222021}]},
+ {route:'960',direction:'O',destination:'灣仔',name:'Example stop',variants:[{operator:'KMB',route:'960',direction:'O',stop_id:'B8B04CD1E568B8F6',service_type:'1',name:'Example stop',lat:22.281,lng:114.158}]}
 ];
-const state={view:'overview',demo:readStore('hkbus_demo',true),catalogue:[],catalogueDate:'',source:'',favourites:readStore('hkbus_favourites_v2',[]),selected:null,visible:[],operator:'ALL',query:'',nearby:[],location:null,radius:450,etaCache:new Map(),officialRoutes:new Map(),officialStopDetails:new Map(),syncing:false,importBusy:false,notice:'',quickOpen:false};
-state.favourites=Array.isArray(state.favourites)?state.favourites:[];
-const OP=['KMB','LWB','CTB'];
-const hid=it=>`${it.operator}|${it.route}|${it.direction}|${it.stop_id}|${it.service_type||'1'}`;
-const unique=arr=>[...new Map(arr.map(it=>[hid(it),it])).values()];
-const opLabel=x=>x==='CTB'?'Citybus':x==='LWB'?'Long Win':'KMB';
-const hkClock=()=>new Intl.DateTimeFormat('en-HK',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());
-const hkDate=()=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Hong_Kong',month:'long',day:'numeric',year:'numeric'}).format(new Date());
-const fmtNum=n=>Number.isFinite(n)?n.toLocaleString('en-HK'):'—';
-const demoOrFavourites=()=>state.demo?DEMO:state.favourites;
-const content=$('#mainContent');
-const notice=msg=>{state.notice=msg;const n=$('#notice');n.textContent=msg;n.classList.toggle('hidden',!msg)};
-const favSet=()=>new Set(state.favourites.map(hid));
-const isFav=it=>favSet().has(hid(it));
-function makeItem(v){if(!v||!OP.includes(String(v.operator||'').toUpperCase()))return null;
- const operator=String(v.operator).toUpperCase(),route=String(v.route||'').trim().toUpperCase(),direction=String(v.direction||'O').slice(0,1).toUpperCase();
- const stop_id=String(v.stop_id||v.stop||'').trim().toUpperCase(),service_type=String(v.service_type||v.serviceType||'1');
- if(!/^[A-Z0-9]{1,6}$/.test(route)||!['I','O'].includes(direction)||!/^\d{1,3}$/.test(service_type))return null;
- if(operator==='CTB'&&!/^\d{6}$/.test(stop_id))return null;
- if(operator!=='CTB'&&!/^[A-F0-9]{16}$/.test(stop_id))return null;
- const lat=Number(v.lat),lng=Number(v.lng??v.long);
- return {operator,route,direction,stop_id,service_type,name:String(v.name||v.stop_name||'Bus stop'),destination:String(v.destination||v.dest||'Destination not supplied'),lat:Number.isFinite(lat)?lat:null,lng:Number.isFinite(lng)?lng:null,approximate:!!v.approximate};
+const state = {view:'overview',demo:storage('hkbus_demo',true),catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),notice:'',forceRefresh:false};
+state.favourites = Array.isArray(state.favourites)?state.favourites:[];
+function normalize(input){
+ if(!input || typeof input!=='object')return null;
+ const operator=clean(input.operator),route=clean(input.route),direction=clean(input.direction||'O').slice(0,1),stop_id=clean(input.stop_id||input.stop),service_type=String(input.service_type||input.serviceType||'1');
+ if(!operators.includes(operator)||!/^\d{1,3}[A-Z]{0,2}$|^[A-Z]{1,3}\d{1,3}[A-Z]?$/.test(route)||!['O','I'].includes(direction)||!/^[0-9]{1,3}$/.test(service_type))return null;
+ if(operator==='CTB'?!/^\d{6}$/.test(stop_id):!/^[0-9A-F]{16}$/.test(stop_id))return null;
+ const lat=latlon(input.lat),lng=latlon(input.lng??input.long);
+ return {operator,route,direction,stop_id,service_type,name:String(input.name||input.stop_name||'Bus stop'),destination:String(input.destination||input.dest||''),lat,lng};
 }
-function normalizedCatalogue(input){
- if(Array.isArray(input.entries)){return input.entries.map(makeItem).filter(Boolean)}
- if(input.routes&&input.cells){
-  const coords=new Map();for(const [key,labels] of Object.entries(input.cells)){
-   const [a,b]=key.split('_').map(Number);if(!Number.isFinite(a)||!Number.isFinite(b))continue;
-   for(const label of labels)if(!coords.has(label))coords.set(label,[(a+.5)/100,(b+.5)/100]);
+function uniqueCatalogue(rows){const map=new Map();for(const raw of rows){const it=normalize(raw);if(it)map.set(itemID(it),it);}return [...map.values()];}
+function normalizeCatalogue(json){if(Array.isArray(json.entries))return uniqueCatalogue(json.entries);
+ if(json.routes&&json.cells){const coords=new Map();for(const [cell,labels] of Object.entries(json.cells)){const [a,b]=cell.split('_').map(Number);for(const label of labels||[])if(!coords.has(label))coords.set(label,[(a+.5)/100,(b+.5)/100]);}return uniqueCatalogue(Object.entries(json.routes).map(([key,it])=>({...it,name:key.split(' · ').at(-1)||'Stop',lat:coords.get(key)?.[0],lng:coords.get(key)?.[1]})));}
+ throw Error('Unsupported catalogue format. Generate catalogue.json using make_catalogue.py');}
+function makeGroups(items){
+ const groups=new Map();
+ for(const it of items){const key=groupID(it);let g=groups.get(key);if(!g){g={key,route:it.route,direction:it.direction,items:[],operators:new Set(),destCounts:new Map()};groups.set(key,g);}
+  g.items.push(it);g.operators.add(it.operator);const dest=it.destination.trim();if(dest)g.destCounts.set(dest,(g.destCounts.get(dest)||0)+1);
+ }
+ return [...groups.values()].map(g=>({...g,operators:[...g.operators].sort(),destination:[...g.destCounts].sort((a,b)=>b[1]-a[1])[0]?.[0]||'Destination not available',stopCount:new Set(g.items.map(x=>x.operator+'|'+x.stop_id)).size}))
+   .sort((a,b)=>a.route.localeCompare(b.route,'en',{numeric:true})||(a.direction===b.direction?0:a.direction==='O'?-1:1));
+}
+function routeResults(){
+ const q=clean(state.query), all=state.demo?makeGroups(demoStops.flatMap(x=>x.variants.map(v=>({...v,destination:x.destination})))):state.groups;
+ let groups=all.filter(g=>state.operator==='ALL'||g.operators.includes(state.operator));
+ if(q){
+  // Route-like queries must match route NUMBER, never a stop name or another route's destination.
+  if(/^[A-Z0-9]{1,6}$/.test(q)&&/\d/.test(q)){
+   const exact=groups.filter(g=>g.route===q);
+   groups=exact.length?exact:groups.filter(g=>g.route.startsWith(q));
+  } else groups=groups.filter(g=>g.route.includes(q)||g.destination.toUpperCase().includes(q)||g.items.some(x=>x.name.toUpperCase().includes(q)));
+ }
+ return groups;
+}
+function restoreFavs(){
+ state.favourites=state.favourites.map(f=>{
+  if(Array.isArray(f.variants)){
+   const variants=f.variants.map(normalize).filter(Boolean);
+   return variants.length?{route:variants[0].route,direction:variants[0].direction,destination:String(f.destination||''),name:String(f.name||variants[0].name),variants}:null;
   }
-  return Object.entries(input.routes).map(([label,v])=>{const geo=coords.get(label)||[null,null];return makeItem({...v,name:label.split(' · ').slice(-1)[0]?.replace(/\s*\[.*$/,'')||'Bus stop',destination:label.match(/→\s*([^·]*)/)?.[1]?.trim()||'',lat:geo[0],lng:geo[1],approximate:true})}).filter(Boolean);
+  const item=normalize(f);return item?{route:item.route,direction:item.direction,destination:item.destination,name:item.name,variants:[item]}:null;
+ }).filter(Boolean);
+}
+restoreFavs();
+const banner = msg => {state.notice=msg;const el=$('#notice');el.textContent=msg;el.classList.toggle('hidden',!msg);};
+const line = (title,desc) => `<div class="section-title">${esc(title)}</div>${desc?`<div class="section-sub">${esc(desc)}</div>`:''}`;
+const operatorChips = ops => `<span class="operators">${ops.map(x=>`<span class="operator-chip">${esc(names[x]||x)}</span>`).join('')}</span>`;
+function groupRows(groups){return groups.map((g,i)=>`<button class="route-group" data-action="openGroup" data-group="${esc(g.key)}">
+ <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(g.destination)}</strong><span class="group-meta">${g.direction==='O'?'Outbound':'Inbound'} · ${fmt(g.stopCount)} stop records</span>${operatorChips(g.operators)}</span><span class="group-arrow">›</span></button>`).join('');}
+function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(f.destination||'Saved bus stop')}</strong><span class="group-meta">${esc(f.name)} · ${f.direction==='O'?'Outbound':'Inbound'}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span><span class="group-arrow">›</span></button>`).join('');}
+function overview(){const fs=state.demo?demoStops:state.favourites;
+ return `<div class="card"><div class="hero-kicker"><span>Bus arrivals</span><span class="mint-tag">${state.demo?'DEMO':'LIVE'}</span></div><div class="hero-minutes">${fmt(fs.length)}<span>saved stops</span></div><div class="hero-description">Select a saved stop to retrieve the next arrivals. Predictions are requested from the operator.</div><div class="stat-grid"><div class="stat"><div class="label">Catalogue routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:19px">${esc(hkTime())}</div></div></div></div>${line('Your favourites','Tap a stop to check live arrivals')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites yet. Find a route and save your boarding stop.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Find a bus route</button><button class="ghost-button" data-view="nearby">Nearby stops</button></div>`;}
+function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Your chosen route, direction and boarding stop')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
+function browse(){const groups=routeResults();return `<div class="card"><div class="card-title">Search by route number or stop name</div><input id="routeSearch" class="field" autocomplete="off" placeholder="102, 960, 1A, 中環" value="${esc(state.query)}"/><p class="hint">A route number matches that route only. Each direction appears once; participating operators appear together.</p></div><div class="operator-row">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div>${line('Routes and directions',`${fmt(groups.length)} grouped results · select one to see verified operator stops`)}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,100)):'<div class="empty">No matching routes. Try another route number or stop name.</div>'}</div>${groups.length>100?'<p class="small-note">Showing the first 100 groups. Enter a route number to narrow the results.</p>':''}`;}
+function nearby(){const candidates=state.demo?demoStops.flatMap(f=>f.variants):state.nearby;
+ const groups=makeGroups(candidates);groups.sort((a,b)=>(a.nearestDistance??Infinity)-(b.nearestDistance??Infinity));
+ return `<div class="card"><div class="card-title">Nearby bus services</div><p class="hint">Use your iPhone location to find routes around you. Selecting a route retrieves verified operator stop IDs before requesting ETA.</p><div class="input-row"><select class="select" id="radiusSelect">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select><button class="primary-button" data-action="locate">⌖ Locate me</button></div>${state.position?`<p class="small-note">GPS accuracy ±${Math.round(state.position.accuracy)}m · ${fmt(candidates.length)} matching route-stop entries</p>`:''}</div>${line('Routes near you',state.demo?'Illustration only':state.position?`${fmt(groups.length)} route / direction groups`:'Tap Locate me to search')}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,90)):'<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>'}</div>`;}
+function settings(){return `${line('Data and preferences','Stored on this browser unless exported')}<div class="card"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:17px">${esc(state.catalogueDate||'Not loaded')}</div></div></div><p class="hint">The catalogue is for route and GPS discovery. Before showing bus times, the dashboard verifies stop membership using official KMB/Citybus route-stop APIs.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div><div class="card"><div class="card-title">Favourites backup</div><p class="hint">Saved only in this browser. Export before clearing Safari site data or switching devices.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">${fmt(state.favourites.length)} saved</p></div><div class="card"><div class="card-title">Diagnostics</div><p class="hint">KMB/LWB and Citybus public APIs are queried directly. A network/CORS failure is reported explicitly, never displayed as a missing bus.</p><div class="buttons"><button class="ghost-button" data-action="clearETAs">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div>`;}
+function render(){const titles={overview:['Overview','Your bus arrivals at a glance'],favourites:['Favourites','Your frequently used journeys'],nearby:['Nearby Stops','Services around your location'],browse:['Find a Route','One entry per route and direction'],settings:['Settings','Catalogue, data and permissions']};
+ const [title,desc]=titles[state.view];$('#pageTitle').textContent=title;$('#pageCaption').textContent=desc;
+ $('#todayLabel').textContent='HONG KONG · '+hkDate().toUpperCase();$('#modeBadge').textContent=state.demo?'DEMO PREVIEW':'LIVE MODE';$('#modeBadge').classList.toggle('demo',state.demo);$('#modeButton').textContent=state.demo?'Go live':'Preview UI';$('#syncLabel').textContent=state.demo?'Sample data · not live':'HK time '+hkTime();
+ document.querySelectorAll('.nav-btn').forEach(el=>el.classList.toggle('selected',el.dataset.view===state.view));
+ $('#mainContent').innerHTML=({overview,favourites,nearby,browse,settings}[state.view]||overview)();}
+function setView(view){state.view=view;banner('');render();scrollTo({top:0,behavior:'instant'});}
+async function requestJSON(url,limit=13000){const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),limit);try{const res=await fetch(url,{cache:'no-store',signal:ctrl.signal});if(!res.ok)throw Error('API HTTP '+res.status);return await res.json();}catch(err){if(err.name==='AbortError')throw Error('API request timed out');throw err;}finally{clearTimeout(timeout);}}
+// The operator's current route-stop list is authoritative. Catalogue mappings are NOT.
+function officialListURL(op,route,direction,service){const bound=direction==='I'?'inbound':'outbound';return op==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/${encodeURIComponent(route)}/${bound}`:`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${encodeURIComponent(route)}/${bound}/${encodeURIComponent(service||'1')}`;}
+async function getOfficialStops(op,route,direction,service){const key=[op,route,direction,service].join('|'), cached=state.routeStops.get(key);
+ if(cached && Date.now()-cached.at<3600000)return cached.value;
+ const doc=await requestJSON(officialListURL(op,route,direction,service));
+ if(!Array.isArray(doc.data))throw Error(op+' returned invalid route-stop JSON');
+ const list=doc.data.filter(s=>clean(s.route)===route && (!s.dir||s.dir===direction) && (op==='CTB'?/^\d{6}$/.test(s.stop||''):/^[0-9A-F]{16}$/i.test(s.stop||''))).map(s=>({operator:op,route,direction,service_type:service,stop_id:clean(s.stop),seq:Number(s.seq)||9999})).sort((a,b)=>a.seq-b.seq);
+ state.routeStops.set(key,{at:Date.now(),value:list});return list;
+}
+const stopNameURL = it => it.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/stop/${it.stop_id}`:`https://data.etabus.gov.hk/v1/transport/kmb/stop/${it.stop_id}`;
+async function getStopDetails(it){const key=it.operator+'|'+it.stop_id;
+ if(state.stopDetails.has(key))return state.stopDetails.get(key);
+ const task=(async()=>{const j=await requestJSON(stopNameURL(it),13000),d=j.data;if(!d)throw Error('Missing stop details for '+key);
+ const lat=latlon(d.lat),lng=latlon(d.long??d.lng);
+ return {...it,name:String(d.name_tc||d.name_en||'Stop '+it.stop_id),lat,lng};})();
+ state.stopDetails.set(key,task);task.catch(()=>state.stopDetails.delete(key));return task;}
+async function officialGroup(g){
+ const ops=g.operators || [...new Set(g.items.map(i=>i.operator))];
+ const jobs=[];for(const op of ops){const candidates=g.items.filter(i=>i.operator===op),services=op==='CTB'?['1']:[...new Set(candidates.map(i=>i.service_type||'1'))].slice(0,4);
+   for(const service of services)jobs.push({op,service});}
+ const settled=await Promise.all(jobs.map(async job=>{try{return {job,stops:await getOfficialStops(job.op,g.route,g.direction,job.service)}}catch(e){return {job,error:e.message}}}));
+ const warnings=settled.filter(z=>z.error).map(z=>z.job.op+': '+z.error),raw=settled.flatMap(z=>z.stops||[]);
+ const match=new Map(g.items.map(it=>[it.operator+'|'+it.stop_id,it]));
+ const merged=new Map();for(const record of raw){const key=record.operator+'|'+record.route+'|'+record.direction+'|'+record.stop_id;if(!merged.has(key)){
+  const m=match.get(record.operator+'|'+record.stop_id);
+  merged.set(key,{...record,name:m?.name||'',lat:m?.lat??null,lng:m?.lng??null,destination:g.destination});
+ }}
+ const items=[...merged.values()];
+ // Operator route-stop APIs return IDs only. Prefer catalogue stop details where the
+ // route/stop pair was verified, otherwise resolve directly from official stop API.
+ const missing=items.filter(it=>!goodPosition(it)||!it.name);
+ for(let i=0;i<missing.length;i+=8){await Promise.all(missing.slice(i,i+8).map(async it=>{try{Object.assign(it,await getStopDetails(it));}catch{it.name=it.name||'Stop '+it.stop_id;}}));}
+ return {stops:clusterStops(items,g),warnings};
+}
+function clusterStops(items,g){
+ const ordered=items.slice().sort((a,b)=>a.seq-b.seq||a.operator.localeCompare(b.operator));
+ const clusters=[];
+ for(const it of ordered){let found=null;
+  if(goodPosition(it))found=clusters.find(s=>goodPosition(s)&&distance(s.lat,s.lng,it.lat,it.lng)<=25 && (s.name===it.name||s.variants.every(v=>v.operator!==it.operator)));
+  if(found){if(!found.variants.some(x=>itemID(x)===itemID(it)))found.variants.push(it);found.seq=Math.min(found.seq,it.seq);}
+  else clusters.push({route:g.route,direction:g.direction,destination:g.destination,name:it.name||'Stop '+it.stop_id,lat:it.lat,lng:it.lng,seq:it.seq,variants:[it]});
  }
- throw new Error('Unsupported catalogue schema. Select catalogue.json generated by the included Mac script or original HK Bus ETA installer.');
+ const pos=state.position;clusters.forEach(s=>s.distance=pos&&goodPosition(s)?distance(pos.lat,pos.lng,s.lat,s.lng):null);
+ return clusters.sort((a,b)=>pos?(a.distance??Infinity)-(b.distance??Infinity)||a.seq-b.seq:a.seq-b.seq);
 }
-async function db(){return new Promise((resolve,reject)=>{if(!indexedDB)return reject(new Error('IndexedDB unavailable'));const q=indexedDB.open('hk-bus-eta-dashboard',1);q.onupgradeneeded=()=>q.result.createObjectStore('data');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
-async function idbGet(k){try{const d=await db();return await new Promise((ok,no)=>{const t=d.transaction('data','readonly');const q=t.objectStore('data').get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error);t.oncomplete=()=>d.close()})}catch{return null}}
-async function idbSet(k,v){try{const d=await db();return await new Promise((ok,no)=>{const t=d.transaction('data','readwrite');t.objectStore('data').put(v,k);t.oncomplete=()=>{d.close();ok()};t.onerror=()=>no(t.error)})}catch(e){notice('Catalogue loaded for this session, but browser storage could not retain it: '+e.message)}}
-function filtered(items){return items.filter(x=>state.operator==='ALL'||x.operator===state.operator)}
-function barTitle(title,description){return `<div class="section-title">${esc(title)}</div>${description?`<div class="section-sub">${esc(description)}</div>`:''}`}
-function controls(){return `<div class="card"><div class="card-title">Your arrivals</div><select id="operatorFilter" class="select" aria-label="Bus operator"><option value="ALL" ${state.operator==='ALL'?'selected':''}>All bus operators</option>${OP.map(op=>`<option ${state.operator===op?'selected':''}>${op}</option>`).join('')}</select></div>`}
-function etaView(it){if(state.demo)return it.demo_etas||[3,12,24];const c=state.etaCache.get(hid(it));if(!c)return null;return c.result||null}
-function rowHtml(it,i){const eta=etaView(it),next=eta?.length?eta[0]:null;return `<div class="arrival-row"><div class="arrival-bus ${it.operator==='CTB'?'ctb':''}">${esc(it.route)}</div><div class="arrival-mid"><div class="arrival-route">${esc(it.destination)}</div><div class="arrival-stop">${esc(opLabel(it.operator))} · ${esc(it.name)}</div></div><div class="arrival-right">${next!==null?`<div class="eta-num">${next===0?'Due':esc(next)}</div><div class="eta-unit">${next===0?'now':'min'}</div>`:`<div class="eta-unit">${state.demo?'—':state.etaCache.get(hid(it))?.error?'Unavailable':'Tap for ETA'}</div>`}</div><button class="star-button" aria-label="Show route details" data-action="details" data-idx="${i}">›</button></div>`}
-function rowsHtml(items){state.visible=items;return items.map(rowHtml).join('')}
-function overview(){const items=filtered(demoOrFavourites()), allETA=items.map(it=>({it,eta:etaView(it)})).filter(v=>v.eta?.length).sort((a,b)=>a.eta[0]-b.eta[0]);const next=allETA[0];const first=next?.it;
-const hero=first?`<div class="hero-kicker"><span>Next bus arriving</span><span class="mint-tag">${state.demo?'DEMO':'LIVE ETA'}</span></div><div class="hero-minutes">${next.eta[0]===0?'0':esc(next.eta[0])}<span>min</span></div><div class="hero-destination"><span class="route-pill">${esc(first.route)}</span> ${esc(first.destination)}</div><div class="hero-description">${esc(opLabel(first.operator))} · ${esc(first.name)}</div>`:`<div class="hero-kicker"><span>Next bus arriving</span><span class="mint-tag">${state.demo?'DEMO':'LIVE'}</span></div><div class="hero-minutes">—<span>min</span></div><div class="hero-destination">No arrival data yet</div><div class="hero-description">Add a favourite or browse a route to check live times.</div>`;
-return `${controls()}<div class="card">${hero}<div class="stat-grid"><div class="stat"><div class="label">Saved routes</div><div class="value">${state.demo?'3':fmtNum(state.favourites.length)}</div></div><div class="stat"><div class="label">Updated · HK time</div><div class="value muted" style="font-size:19px">${state.demo?'Preview':hkClock()}</div></div></div>${state.demo?'<p class="small-note" style="margin:13px 0 0">Illustrative arrival times for UI preview; not live predictions.</p>':''}</div><div class="title-row"><div>${barTitle('Upcoming arrivals','Your saved stop-and-route combinations')}</div><button class="action-link" data-action="refresh">Refresh ↻</button></div><div class="card list-rows">${items.length?rowsHtml(items.slice(0,8)):`<div class="empty"><div class="emoji">☆</div>No favourites saved yet.<br>Use Routes or Nearby to add your first stop.</div>`}</div><div class="buttons"><button class="ghost-button" data-view="nearby">⌖ Find nearby stops</button><button class="primary-button" data-view="browse">＋ Browse routes</button></div>`}
-function favourites(){const items=filtered(demoOrFavourites());return `${barTitle('Saved bus stops','Tap a route to see its next three arrivals.')}<div class="card list-rows">${items.length?rowsHtml(items):`<div class="empty"><div class="emoji">☆</div>No favourites yet. Add some in Routes or Nearby.</div>`}</div>${state.demo?`<p class="hint">These are sample favourites for UI preview. Switch to Live to manage your own.</p>`:''}<div class="buttons"><button class="primary-button" data-view="browse">＋ Add route</button><button class="ghost-button" data-action="exportFav">Export JSON</button></div>`}
-const meters=(a,b,c,d)=>{const rad=Math.PI/180,R=6371000,x=(c-a)*rad,y=(d-b)*rad* Math.cos((a+c)/2*rad);return Math.round(Math.sqrt(x*x+y*y)*R)};
-function nearby(){const geo=state.location,display=state.demo?DEMO.map(it=>({...it,distance:150+DEMO.indexOf(it)*120})):state.nearby;
-const rows=display.slice(0,60);return `<div class="card"><div class="card-title">Location-based arrivals</div><p class="hint">Find stops within ${state.radius} metres of your current GPS position. Location permission requires Safari on an HTTPS website.</p><div class="input-row"><select class="select" id="radiusSelect" aria-label="Search radius">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m radius</option>`).join('')}</select><button class="primary-button" style="white-space:nowrap" data-action="locate">⌖ Locate me</button></div>${geo?`<p class="small-note">GPS: ${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)} · ± ${Math.round(geo.accuracy)} m accuracy</p>`:''}</div>${barTitle('Nearby bus routes',state.demo?'Sample nearby stops — illustration only':geo?`${state.nearby.length} stop-route combinations in range`:'Tap Locate me to search your area')}<div class="card list-rows">${rows.length?rowsHtml(rows):`<div class="empty">No nearby routes to display. Check location permission and import the stop catalogue in Settings.</div>`}</div>`}
-function browse(){let rows=state.demo?DEMO:state.catalogue;const q=state.query.trim().toLowerCase();if(q)rows=rows.filter(x=>`${x.route} ${x.name} ${x.destination} ${x.operator}`.toLowerCase().includes(q));else rows=rows.slice(0,150);rows=filtered(rows);return `<div class="card"><div class="card-title">Search bus route or stop</div><input id="routeSearch" class="field" placeholder="e.g. 960, 1A, Central, 中環" autocomplete="off" value="${esc(state.query)}"/><p class="small-note">For accurate search, install the stop catalogue in Settings first.</p></div><div class="operator-row">${['ALL',...OP].map(op=>`<button data-action="operator" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':op}</button>`).join('')}</div><div class="title-row"><div class="search-meta">${state.demo?'Demo examples':`${fmtNum(rows.length)} matching route-stops shown`}</div><button class="action-link" data-action="showManual">Enter stop ID</button></div><div class="card list-rows">${rows.length?rowsHtml(rows.slice(0,60)):`<div class="empty">No matching routes found.<br>Check the catalogue or try another search.</div>`}</div>${state.quickOpen?manualForm():''}`}
-function manualForm(){return `<div class="card" id="manualCard"><div class="card-title">Add bus stop manually</div><p class="hint">Use the operator's stop ID, not a combined or shared catalogue stop ID.</p><label class="field-label" for="manualOperator">Operator</label><select id="manualOperator" class="select"><option>KMB</option><option>LWB</option><option>CTB</option></select><label class="field-label" for="manualRoute">Route</label><input id="manualRoute" class="field" placeholder="e.g. 1A"/><label class="field-label" for="manualStop">Operator stop ID</label><input id="manualStop" class="field" placeholder="16-character KMB / 6-digit CTB"/><label class="field-label" for="manualDirection">Direction</label><select id="manualDirection" class="select"><option value="O">Outbound (O)</option><option value="I">Inbound (I)</option></select><label class="field-label" for="manualService">Service type (KMB/LWB)</label><input id="manualService" class="field" value="1" inputmode="numeric"/><label class="field-label" for="manualName">Stop name (optional)</label><input id="manualName" class="field" placeholder="My bus stop"/><div style="margin-top:15px"><button class="primary-button" data-action="addManual" style="width:100%">Save and check ETA</button></div></div>`}
-function settings(){return `${barTitle('Data & preferences','Keep the bus catalogue and favourites on your device.')}<div class="card"><div class="card-title">Bus stop catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Available route-stops</div><div class="value">${fmtNum(state.catalogue.length)}</div></div><div class="stat"><div class="label">Catalogue date</div><div class="value muted" style="font-size:17px">${esc(state.catalogueDate||'Not loaded')}</div></div></div><p class="hint">For Nearby and route search, generate catalogue.json using the included Mac script, then upload it here. When hosted, catalogue.json in the same folder is loaded automatically.</p><button class="primary-button" data-action="importCat">Import catalogue.json</button></div><div class="card"><div class="card-title">Favourites backup</div><p class="hint">Import an existing favourites.json from the original HK Bus ETA Shortcut, or export this dashboard's saved list. Favourites are kept locally in this browser; they do not automatically sync with the native Shortcut.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">Stored favourites: ${state.favourites.length}</p></div><div class="card"><div class="card-title">Data sources</div><p class="hint">KMB/Long Win Bus: Transport Department API · Citybus: Citybus V2 API. ETAs are refreshed on request; predictions are not guarantees.</p><p class="hint">If browser requests are blocked by CORS, the dashboard shows an error rather than inventing arrival times. A compatible server-side relay or native Shortcuts request will then be needed.</p><div class="buttons"><button class="ghost-button" data-action="clearCache">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div>`}
-function render(){const names={overview:'Overview',favourites:'Favourites',nearby:'Nearby Stops',browse:'Find a Route',settings:'Settings'},desc={overview:'Your bus arrivals at a glance',favourites:'Your frequently used journeys',nearby:'Stops around your current location',browse:'Search Hong Kong bus routes',settings:'Catalogue, data and permissions'};
-$('#pageTitle').textContent=names[state.view];$('#pageCaption').textContent=desc[state.view];$('#todayLabel').textContent=`HONG KONG · ${hkDate().toUpperCase()}`;
-$('#modeBadge').textContent=state.demo?'DEMO PREVIEW':'LIVE MODE';$('#modeBadge').classList.toggle('demo',state.demo);$('#modeButton').textContent=state.demo?'Go live':'Preview UI';$('#syncLabel').textContent=state.demo?'Sample data · not live':`HK time ${hkClock()}`;
-document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('selected',b.dataset.view===state.view));
-content.innerHTML=({overview,favourites,nearby,browse,settings}[state.view]||overview)();
-if(!state.demo&&['overview','favourites'].includes(state.view))syncFavouriteEtas();
+function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';}
+function closeDialog(){state.dialogToken++;$('#modalScrim').classList.add('hidden');state.currentGroup=null;state.currentStop=null;}
+async function openGroup(key){const groups=state.view==='nearby'?makeGroups(state.nearby):routeResults();let group=groups.find(g=>g.key===key);
+ if(!group)return;
+ // Nearby discovers the route using local points, but needs all operators on
+ // that route when verifying stops (joint KMB + Citybus services).
+ if(state.view==='nearby'&&!state.demo)group=state.groups.find(g=>g.key===key)||group;const token=++state.dialogToken;state.currentGroup=group;state.currentStop=null;state.routeFailures=[];dialog(group.route+' · '+(group.direction==='I'?'Inbound':'Outbound'));
+ $('#modalBody').innerHTML='<p class="hint loading">Checking KMB / Citybus official stop lists…</p>';
+ if(state.demo){state.verified=demoStops.filter(x=>x.route===group.route&&x.direction===group.direction);drawStopPicker(token);return;}
+ try{const data=await officialGroup(group);if(token!==state.dialogToken)return;state.verified=data.stops;state.routeFailures=data.warnings;drawStopPicker(token);}
+ catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
 }
-function routeAPI(item){const v=makeItem(item);if(!v)throw Error('Invalid operator, route, stop ID or direction.');const path=encodeURIComponent(v.route);
- return v.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${v.stop_id}/${path}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${v.stop_id}/${path}/${v.service_type}`}
-// The shared third-party catalogue is useful for discovery, but is not a reliable
-// source of *route membership*. Verify unmatched Citybus stops with Citybus's
-// authoritative route-stop endpoint before describing missing ETAs.
-async function officialCTBRouteStops(it){
- const key=`${it.route}|${it.direction}`;
- if(!state.officialRoutes.has(key)){
-  const promise=(async()=>{
-   const dir=it.direction==='I'?'inbound':'outbound';
-   const url=`https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/${encodeURIComponent(it.route)}/${dir}`;
-   const response=await fetch(url,{cache:'no-store'});
-   if(!response.ok)throw Error(`Citybus route-stop lookup returned HTTP ${response.status}`);
-   const json=await response.json();
-   if(!Array.isArray(json.data))throw Error('Unexpected Citybus route-stop response');
-   return json.data.filter(x=>x.route===it.route&&x.dir===it.direction&&/^\d{6}$/.test(x.stop||''))
-     .sort((a,b)=>Number(a.seq)-Number(b.seq));
-  })();
-  state.officialRoutes.set(key,promise);
-  promise.catch(()=>{if(state.officialRoutes.get(key)===promise)state.officialRoutes.delete(key)});
- }
- return state.officialRoutes.get(key);
+function drawStopPicker(token){if(token!==state.dialogToken)return;let body='<div class="detail"><strong>'+esc(state.currentGroup?.destination||'')+'</strong><p class="hint">Select your actual boarding stop. These stop IDs come from the operator’s current official route list.</p></div>';
+ if(state.routeFailures.length)body+='<div class="notice">Some operators could not be loaded: '+esc(state.routeFailures.join('; '))+'</div>';
+ if(!state.verified.length){body+='<div class="notice">No verified stops returned for this route and direction. Please try another route or later.</div>';}
+ else body+='<div class="result-list">'+state.verified.map((s,i)=>`<button class="result-item" data-action="selectStop" data-index="${i}"><span><span class="result-name">${esc(s.name)}</span><span class="result-sub">${operatorChips([...new Set(s.variants.map(x=>x.operator))])} · ${s.distance!==null?esc(s.distance)+' m away · ':''}${s.variants.map(x=>esc(x.stop_id)).join(' / ')}</span></span><span class="result-right">ETA ›</span></button>`).join('')+'</div>';
+ $('#modalBody').innerHTML=body;
 }
-async function officialCTBStopDetail(id){
- if(!state.officialStopDetails.has(id)){
-  const promise=(async()=>{
-   const response=await fetch(`https://rt.data.gov.hk/v2/transport/citybus/stop/${encodeURIComponent(id)}`,{cache:'force-cache'});
-   if(!response.ok)throw Error(`Stop ${id}: HTTP ${response.status}`);
-   const j=await response.json(),v=j.data;
-   if(!v||v.stop!==id)throw Error(`Stop ${id}: invalid data`);
-   return {stop:id,name:v.name_tc||v.name_en||`Stop ${id}`,lat:Number(v.lat),lng:Number(v.long)};
-  })();
-  state.officialStopDetails.set(id,promise);
-  promise.catch(()=>{if(state.officialStopDetails.get(id)===promise)state.officialStopDetails.delete(id)});
- }
- return state.officialStopDetails.get(id);
-}
-async function showOfficialCTBStops(){
- const it=state.selected, box=$('#modalBody .eta-large');
- if(!it||it.operator!=='CTB'||!box)return;
- box.innerHTML='<p class="hint">Loading Citybus verified route stops…</p>';
- try{
-  const list=await officialCTBRouteStops(it);
-  if(state.selected!==it)return;
-  if(!list.length){box.innerHTML='<div class="notice">No official stops were returned for this direction. Try another direction or route.</div>';return}
-  const details=[];
-  // Limit concurrency so the Citybus API is not flooded with stop requests.
-  for(let start=0;start<list.length;start+=6){
-   const chunk=await Promise.all(list.slice(start,start+6).map(async x=>{
-    try{return {...await officialCTBStopDetail(x.stop),seq:x.seq}}catch{return {stop:x.stop,name:`Stop ${x.stop}`,seq:x.seq,lat:NaN,lng:NaN}}
-   }));
-   details.push(...chunk);
-   if(state.selected!==it)return;
-  }
-  const hasLocation=Number.isFinite(it.lat)&&Number.isFinite(it.lng);
-  const ordered=details.map(x=>({...x,distance:hasLocation&&Number.isFinite(x.lat)&&Number.isFinite(x.lng)?meters(it.lat,it.lng,x.lat,x.lng):null}))
-    .sort((a,b)=>a.distance===null?(b.distance===null?a.seq-b.seq:1):b.distance===null?-1:a.distance-b.distance);
-  const out=ordered.map(x=>`<button class="result-item" data-action="pickOfficialStop" data-stopid="${esc(x.stop)}"><span><span class="result-name">${esc(x.name)}</span><span class="result-sub">Stop ${esc(x.stop)} · #${esc(x.seq)}${x.distance!==null?` · ${esc(x.distance)} m from selected location`:''}</span></span><span class="result-right">Choose ›</span></button>`).join('');
-  box.innerHTML=`<div style="width:100%"><p class="hint">Official Citybus stops for route ${esc(it.route)} (${it.direction==='I'?'Inbound':'Outbound'}). Choose your actual boarding stop. Nearby options appear first.</p><div class="result-list">${out}</div></div>`;
- }catch(err){if(state.selected===it)box.innerHTML=`<div class="notice">Unable to load Citybus stops: ${esc(err.message)}</div>`}
-}
-async function pickOfficialCTBStop(id){
- const it=state.selected;
- if(!it||it.operator!=='CTB')return;
- try{
-  const valid=await officialCTBRouteStops(it);
-  if(!valid.some(x=>x.stop===id))throw Error('The selected stop is not served by this route');
-  const detail=await officialCTBStopDetail(id);
-  if(state.selected!==it)return;
-  state.selected={...it,stop_id:id,name:detail.name,lat:detail.lat,lng:detail.lng};
-  await updateModal(true);
- }catch(err){notice(`Unable to select Citybus stop: ${err.message}`)}
-}
-async function fetchETA(it,force=false){const id=hid(it),old=state.etaCache.get(id);if(!force&&old&&Date.now()-old.time<45000)return old;
- const controller=new AbortController(),tm=setTimeout(()=>controller.abort(),12000);
- try{const resp=await fetch(routeAPI(it),{cache:'no-store',signal:controller.signal});if(!resp.ok)throw Error(`Bus API returned HTTP ${resp.status}`);const j=await resp.json();if(!Array.isArray(j.data))throw Error('Bus API returned an unexpected JSON format');
- const dirs=j.data.filter(v=>v.route===it.route&&(!v.dir||v.dir===it.direction)&&v.eta);
- const now=Date.now(),times=dirs.map(v=>Math.ceil((Date.parse(v.eta)-now)/60000)).filter(v=>Number.isFinite(v)&&v>=0&&v<=180).sort((a,b)=>a-b).slice(0,3);
- let invalidStop=false;
- // Empty ETA data can be legitimate. Check route membership before reporting it.
- if(!times.length&&it.operator==='CTB'){
-  try{const official=await officialCTBRouteStops(it);invalidStop=official.length>0&&!official.some(x=>x.stop===it.stop_id)}
-  catch{/* Preserve the original empty ETA result if membership cannot be checked. */}
- }
- const result={time:Date.now(),result:times,invalidStop};state.etaCache.set(id,result);return result
- }catch(err){const result={time:Date.now(),result:null,error:String(err.name==='AbortError'?'Request timed out':err.message||err)};state.etaCache.set(id,result);return result}finally{clearTimeout(tm)}
-}
-async function syncFavouriteEtas(force=false){if(state.syncing||!state.favourites.length)return;const items=filtered(state.favourites).slice(0,8);if(!force&&items.every(x=>{const v=state.etaCache.get(hid(x));return v&&Date.now()-v.time<45000}))return;
- state.syncing=true;try{await Promise.all(items.map(it=>fetchETA(it,force)));if(state.view==='overview'||state.view==='favourites')render()}finally{state.syncing=false}}
-async function openRoute(it){state.selected=it;$('#modalTitle').textContent=`${it.route} · ${opLabel(it.operator)}`;$('#modalScrim').classList.remove('hidden');await updateModal()}
-async function updateModal(force=false){const it=state.selected;if(!it)return;const div=$('#modalBody'),saved=isFav(it);div.innerHTML=`<div class="detail"><strong>${esc(it.destination)}</strong><p class="hint">${esc(it.name)} · ${esc(it.stop_id)}<br>${it.direction==='I'?'Inbound':'Outbound'} · ${esc(opLabel(it.operator))}</p></div><div class="group-heading">Next three arrivals</div><div class="eta-large"><span class="small-note loading">Fetching arrivals…</span></div><div class="two-buttons"><button class="primary-button" data-action="toggleFav">${saved?'★ Remove favourite':'☆ Add favourite'}</button><button class="ghost-button" data-action="refreshDetail">↻ Refresh</button></div>`;
- const result=state.demo?{result:it.demo_etas||[3,12,24]}:await fetchETA(it,force);if(state.selected!==it||$('#modalScrim').classList.contains('hidden'))return;
- const arr=result.result,box=div.querySelector('.eta-large');if(result.error){box.innerHTML=`<div class="notice">${esc(result.error)}. Network or browser CORS rules may block the request. Try Safari over HTTPS or use the native Shortcut.</div>`}
- else if(result.invalidStop){box.innerHTML=`<div class="notice">This catalogue stop ID (${esc(it.stop_id)}) is not on Citybus route ${esc(it.route)} in this direction. Select an official stop to get accurate arrival times.</div><button class="primary-button" data-action="showOfficialStops">Find verified Citybus stops</button>`;
-  const favButton=div.querySelector('[data-action="toggleFav"]');if(favButton)favButton.disabled=true;
- }
- else if(!arr?.length){box.innerHTML='<p class="hint">No ETA predicted at this stop right now. This is not the same as a cancelled service.</p>'}
- else{box.innerHTML=arr.map(n=>`<div class="eta-chip"><strong>${n===0?'Due':esc(n)}</strong><small>${n===0?'now':'minutes'}</small></div>`).join('')}
- if(state.demo)box.insertAdjacentHTML('afterend','<p class="small-note">Demo times only — switch to Live to request the actual API.</p>');
-}
-function setView(view){state.view=view;notice('');window.scrollTo({top:0,behavior:'instant'});render()}
-function downloadFile(name,obj){const blob=new Blob([JSON.stringify(obj,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-function exportFav(){const obj={};for(const f of state.favourites){obj[`${f.operator} ${f.route} → ${f.destination} · ${f.name} [${f.stop_id}] (${f.direction}, service ${f.service_type||'1'})`]={operator:f.operator,route:f.route,direction:f.direction,stop_id:f.stop_id,eta_url:routeAPI(f),service_type:f.service_type||'1'}}downloadFile('favourites.json',obj)}
-function toggleFavourite(){if(!state.selected||state.demo){notice('Switch to Live mode to save real favourites.');return}const it=state.selected,key=hid(it),old=state.favourites.findIndex(x=>hid(x)===key);if(old>=0)state.favourites.splice(old,1);else state.favourites.push({...it});store('hkbus_favourites_v2',state.favourites);updateModal();render()}
-async function importCat(file){state.importBusy=true;try{const raw=JSON.parse(await file.text());const entries=unique(normalizedCatalogue(raw));if(entries.length<1)throw Error('Catalogue contains no valid operator-specific stops');state.catalogue=entries;state.catalogueDate=raw.catalogue_date||new Date().toISOString().slice(0,10);state.source='imported';await idbSet('catalogue',{entries,catalogue_date:state.catalogueDate});notice(`Catalogue imported: ${fmtNum(entries.length)} route-stop combinations.`);render()}
-catch(e){notice(`Catalogue error: ${e.message}`)}finally{state.importBusy=false}}
-async function importFav(file){try{const j=JSON.parse(await file.text()),vals=Array.isArray(j)?j:Object.values(j);const records=unique(vals.map(makeItem).filter(Boolean));if(!records.length)throw Error('No valid favourites found.');state.favourites=unique([...state.favourites,...records]);store('hkbus_favourites_v2',state.favourites);notice(`Imported ${records.length} favourite records.`);render()}catch(e){notice(`Favourites error: ${e.message}`)}}
-function locate(){if(state.demo){notice('Demo mode uses sample nearby stops. Switch to Live to request GPS.');return}if(!state.catalogue.length){notice('Import a bus-stop catalogue in Settings before using Nearby.');return}if(!navigator.geolocation){notice('Geolocation is not available in this browser. Use Safari on an HTTPS site.');return}
- notice('Requesting iPhone location…');navigator.geolocation.getCurrentPosition(pos=>{const {latitude:lat,longitude:lng,accuracy}=pos.coords;state.location={lat,lng,accuracy};const inArea=lat>22&&lat<22.7&&lng>113.7&&lng<114.6;if(!inArea){state.nearby=[];notice('Your current GPS position is outside Hong Kong. Nearby bus stops are only available in Hong Kong.');render();return}
- const threshold=state.radius/1000/111;state.nearby=state.catalogue.filter(it=>it.lat!=null&&it.lng!=null&&Math.abs(it.lat-lat)<threshold*1.3&&Math.abs(it.lng-lng)<threshold*1.6).map(it=>({...it,distance:meters(lat,lng,it.lat,it.lng)})).filter(it=>it.distance<=state.radius).sort((a,b)=>a.distance-b.distance);notice('');render()},err=>{const meanings={1:'Location permission denied. Enable it for Safari in iPhone Settings.',2:'Location unavailable.',3:'Location request timed out.'};notice(meanings[err.code]||err.message)},{enableHighAccuracy:true,timeout:12000,maximumAge:20000})}
-function addManual(){const v=makeItem({operator:$('#manualOperator').value,route:$('#manualRoute').value,stop_id:$('#manualStop').value,direction:$('#manualDirection').value,service_type:$('#manualService').value,name:$('#manualName').value.trim()||'My bus stop',destination:'Destination not supplied'});if(!v){notice('Invalid route or stop ID. KMB/LWB IDs contain 16 hexadecimal characters; Citybus IDs contain 6 digits.');return}state.favourites=unique([...state.favourites,v]);store('hkbus_favourites_v2',state.favourites);notice('Route added to favourites.');openRoute(v);render()}
-// Click handlers are delegated so re-renders retain functionality.
-document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav){setView(nav.dataset.view);return}const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;
- if(a==='details'){const item=state.visible[Number(el.dataset.idx)];if(item)openRoute(item)}
- else if(a==='refresh'){state.etaCache.clear();syncFavouriteEtas(true);render()}
- else if(a==='refreshDetail')updateModal(true);
- else if(a==='showOfficialStops')showOfficialCTBStops();
- else if(a==='pickOfficialStop')pickOfficialCTBStop(el.dataset.stopid);
- else if(a==='toggleFav')toggleFavourite();
- else if(a==='locate')locate();
- else if(a==='operator'){state.operator=el.dataset.value;render()}
- else if(a==='showManual'){state.quickOpen=!state.quickOpen;render();if(state.quickOpen)$('#manualCard')?.scrollIntoView({behavior:'smooth'})}
- else if(a==='addManual')addManual();
- else if(a==='importCat')$('#catalogueFile').click();
- else if(a==='importFav')$('#favouritesFile').click();
- else if(a==='exportFav')exportFav();
- else if(a==='clearCache'){state.etaCache.clear();notice('Arrival cache cleared.');render()}
- else if(a==='clearFav'){if(confirm('Remove all saved favourites in this browser?')){state.favourites=[];store('hkbus_favourites_v2',[]);notice('Favourites cleared from this browser.');render()}}
+function etaURL(it){return it.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}/${encodeURIComponent(it.service_type||'1')}`;}
+async function getETA(it,force=false){const key=itemID(it),old=state.etas.get(key);if(!force&&old&&Date.now()-old.time<45000)return old;
+ try{const json=await requestJSON(etaURL(it),14000);if(!Array.isArray(json.data))throw Error('Invalid ETA JSON');
+ const now=Date.now();const arr=json.data.filter(x=>clean(x.route)===it.route && (!x.dir||x.dir===it.direction) && (!x.stop||clean(x.stop)===it.stop_id) && x.eta)
+ .map(x=>({at:Date.parse(x.eta),operator:it.operator,remark:String(x.rmk_tc||x.rmk_en||'')})).filter(x=>Number.isFinite(x.at)&&x.at>=now-30000&&x.at<=now+10800000).sort((a,b)=>a.at-b.at);
+ const out={time:Date.now(),arr:arr.slice(0,3)};state.etas.set(key,out);return out;
+ }catch(e){const out={time:Date.now(),arr:[],error:e.message};state.etas.set(key,out);return out;}}
+function isFavourite(s){return state.favourites.some(f=>favID(f)===favID(s));}
+function drawETA(s,results,token){if(token!==state.dialogToken)return;
+ const errs=results.filter(x=>x.error),etas=results.flatMap(x=>x.arr||[]).sort((a,b)=>a.at-b.at).slice(0,6),fav=isFavourite(s);
+ let html=`<div class="detail"><strong>${esc(s.name)}</strong><p class="hint">${esc(s.destination||'')} · ${s.direction==='O'?'Outbound':'Inbound'}<br>${operatorChips([...new Set(s.variants.map(x=>x.operator))])}</p></div><div class="group-heading">Next bus arrivals · HK time ${esc(hkTime())}</div>`;
+ if(state.demo)html+='<div class="notice">Demo sample only — arrival predictions are not live.</div>';
+ if(errs.length)html+='<div class="notice">API request error: '+esc(errs.map(x=>x.error).join(' · '))+'. Check your network or browser API permissions.</div>';
+ if(etas.length)html+='<div class="eta-large">'+etas.map(x=>{const mins=Math.max(0,Math.ceil((x.at-Date.now())/60000));return `<div class="eta-chip"><strong>${mins===0?'Due':mins}</strong><small>${esc(names[x.operator])} · ${mins?'min':'now'}</small></div>`;}).join('')+'</div>';
+ else if(!errs.length)html+='<p class="hint">No ETA predicted by the operator for this verified stop right now. This is not necessarily a cancelled service.</p>';
+ html+=`<div class="two-buttons"><button class="primary-button" data-action="toggleFav">${fav?'★ Remove favourite':'☆ Add favourite'}</button><button class="ghost-button" data-action="refreshStop">↻ Refresh</button></div>${state.currentGroup?'<button class="back-link" data-action="backToStops">← Other stops on this route</button>':''}`;
+ $('#modalBody').innerHTML=html;}
+async function showStop(s,force=false){const token=++state.dialogToken;state.currentStop=s;dialog(s.route+' · '+(s.direction==='O'?'Outbound':'Inbound'));
+ $('#modalBody').innerHTML='<p class="hint loading">Requesting real-time arrivals from official operators…</p>';
+ if(state.demo){const time=Date.now();drawETA(s,[{arr:[3,12,24].map(m=>({at:time+m*60000,operator:s.variants[0].operator}))}],token);return;}
+ const result=await Promise.all(s.variants.map(x=>getETA(x,force)));drawETA(s,result,token);}
+function toggleFav(){const s=state.currentStop;if(!s||state.demo){banner('Switch to Live mode to save favourites.');return;}
+ const idx=state.favourites.findIndex(f=>favID(f)===favID(s));if(idx<0)state.favourites.push({...s});else state.favourites.splice(idx,1);
+ persist('hkbus_favourites_v2',state.favourites);showStop(s);render();}
+function openFavourite(index){const f=(state.demo?demoStops:state.favourites)[index];state.currentGroup=null;if(f)showStop(f);}
+function download(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
+function locate(){if(state.demo){banner('Switch to Live mode to use GPS.');return;}if(!state.catalogue.length){banner('Catalogue not loaded yet. Wait or import it in Settings.');return;}
+ if(!navigator.geolocation){banner('GPS is not available. Open the HTTPS dashboard in Safari.');return;}
+ banner('Requesting iPhone location…');navigator.geolocation.getCurrentPosition(pos=>{const {latitude:lat,longitude:lng,accuracy}=pos.coords;state.position={lat,lng,accuracy};
+  if(!goodPosition(state.position)){state.nearby=[];banner('You appear to be outside Hong Kong; Nearby needs a Hong Kong GPS position.');render();return;}
+  const limit=state.radius,la=limit/110900,lo=limit/(110900*Math.cos(lat*Math.PI/180));
+  state.nearby=state.catalogue.filter(x=>goodPosition(x)&&Math.abs(x.lat-lat)<=la&&Math.abs(x.lng-lng)<=lo&&distance(lat,lng,x.lat,x.lng)<=limit);
+  banner('');render();
+ },error=>banner(({1:'Safari location permission denied.',2:'Current position unavailable.',3:'Location request timed out.'})[error.code]||error.message),{enableHighAccuracy:true,timeout:12000,maximumAge:20000});}
+async function indexedGet(key){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
+ return await new Promise((yes,no)=>{const tx=db.transaction('data');const q=tx.objectStore('data').get(key);q.onsuccess=()=>yes(q.result);q.onerror=()=>no(q.error);tx.oncomplete=()=>db.close();});}catch{return null;}}
+async function indexedPut(key,value){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
+ await new Promise((yes,no)=>{const tx=db.transaction('data','readwrite');tx.objectStore('data').put(value,key);tx.oncomplete=()=>{db.close();yes();};tx.onerror=()=>no(tx.error);});}catch{/* Site catalogue still works this session. */}}
+function applyCatalogue(entries,date){state.catalogue=entries;state.groups=makeGroups(entries);state.catalogueDate=date||'Unknown';render();}
+async function loadCatalogue(){const saved=await indexedGet('catalogue');if(saved&&Array.isArray(saved.entries)){applyCatalogue(saved.entries,saved.date);}
+ try{const res=await fetch('./catalogue.json',{cache:'no-store'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut('catalogue',{entries,date:state.catalogueDate});}
+ catch(e){if(!state.catalogue.length)banner('Could not load catalogue.json: '+e.message+'. Import the JSON file in Settings.');}}
+async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut('catalogue',{entries,date:state.catalogueDate});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
+async function importFavourites(file){try{const json=JSON.parse(await file.text()),arr=Array.isArray(json)?json:Object.values(json);const previous=state.favourites;state.favourites=[...previous,...arr];restoreFavs();state.favourites=[...new Map(state.favourites.map(f=>[favID(f),f])).values()];persist('hkbus_favourites_v2',state.favourites);render();banner('Favourites imported.');}catch(e){banner('Import failed: '+e.message);}}
+let inputTimer;
+document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);},160);}});
+document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){state.radius=Number(e.target.value);state.nearby=[];state.position=null;render();}
+ if(e.target.id==='catalogueFile'){const f=e.target.files?.[0];if(f)importCatalogue(f);e.target.value='';}
+ if(e.target.id==='favouritesFile'){const f=e.target.files?.[0];if(f)importFavourites(f);e.target.value='';}});
+document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav){setView(nav.dataset.view);return;}
+ const el=e.target.closest('[data-action]');if(!el)return;const action=el.dataset.action;
+ if(action==='filterOp'){state.operator=el.dataset.value;render();}
+ if(action==='openGroup')openGroup(el.dataset.group);
+ if(action==='openFavourite')openFavourite(Number(el.dataset.index));
+ if(action==='selectStop'){const s=state.verified[Number(el.dataset.index)];if(s)showStop(s);}
+ if(action==='backToStops'){++state.dialogToken;state.currentStop=null;$('#modalTitle').textContent=state.currentGroup?.route||'Stops';drawStopPicker(state.dialogToken);}
+ if(action==='retryRoute'&&state.currentGroup){openGroup(state.currentGroup.key);}
+ if(action==='refreshStop'&&state.currentStop)showStop(state.currentStop,true);
+ if(action==='toggleFav')toggleFav();
+ if(action==='locate')locate();
+ if(action==='importCat')$('#catalogueFile').click();
+ if(action==='importFav')$('#favouritesFile').click();
+ if(action==='exportFav')download('hk-bus-favourites.json',state.favourites);
+ if(action==='clearETAs'){state.etas.clear();banner('ETA cache cleared.');}
+ if(action==='clearFav'&&confirm('Remove all saved favourites on this browser?')){state.favourites=[];persist('hkbus_favourites_v2',[]);banner('Favourites cleared.');render();}
 });
-document.addEventListener('change',e=>{if(e.target.id==='operatorFilter'){state.operator=e.target.value;render()}else if(e.target.id==='radiusSelect'){state.radius=Number(e.target.value);if(state.location)locate();else render()}});
-let queryTimer;document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(queryTimer);queryTimer=setTimeout(()=>{if(state.view==='browse'){const pos=e.target.selectionStart;render();const el=$('#routeSearch');el?.focus();el?.setSelectionRange(pos,pos)}},180)}});
-$('#modeButton').addEventListener('click',()=>{state.demo=!state.demo;store('hkbus_demo',state.demo);state.etaCache.clear();notice(state.demo?'Demo mode: sample times, not live.':'Live mode: ETAs require an Internet connection.');render()});
-$('#refreshButton').addEventListener('click',()=>{state.etaCache.clear();syncFavouriteEtas(true);render()});
-$('#closeModal').addEventListener('click',()=>$('#modalScrim').classList.add('hidden'));
-$('#modalScrim').addEventListener('click',e=>{if(e.target.id==='modalScrim')$('#modalScrim').classList.add('hidden')});
-$('#catalogueFile').addEventListener('change',e=>{const file=e.target.files?.[0];if(file)importCat(file);e.target.value='' });
-$('#favouritesFile').addEventListener('change',e=>{const file=e.target.files?.[0];if(file)importFav(file);e.target.value='' });
-window.addEventListener('keydown',e=>{if(e.key==='Escape')$('#modalScrim').classList.add('hidden')});
-(async function init(){render();const saved=await idbGet('catalogue');if(saved&&Array.isArray(saved.entries)){state.catalogue=saved.entries;state.catalogueDate=saved.catalogue_date||'Cached';state.source='browser cache';render()}
- // A hosted companion catalogue in the same folder is an optional, HTTPS-friendly bootstrap.
- try{const res=await fetch('./catalogue.json',{cache:'no-store'});if(!res.ok)return;const json=await res.json();const entries=unique(normalizedCatalogue(json));if(!entries.length)return;state.catalogue=entries;state.catalogueDate=json.catalogue_date||'Unknown';state.source='site data';await idbSet('catalogue',{entries,catalogue_date:state.catalogueDate});render()}
- catch{/* No hosted catalogue: use imported/indexed DB version. */}
-})();
+$('#modeButton').addEventListener('click',()=>{state.demo=!state.demo;persist('hkbus_demo',state.demo);state.query='';state.operator='ALL';banner(state.demo?'Demo mode uses illustrative arrival times.':'Live mode active. Choose a route and boarding stop.');render();});
+$('#refreshButton').addEventListener('click',()=>{state.etas.clear();state.routeStops.clear();banner('Caches refreshed.');render();});
+$('#closeModal').addEventListener('click',closeDialog);
+$('#modalScrim').addEventListener('click',e=>{if(e.target.id==='modalScrim')closeDialog();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
+render();loadCatalogue();

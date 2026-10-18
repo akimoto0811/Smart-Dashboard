@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Generate browser-native, precise-coordinate HK bus stop catalogue (standard library only)."""
+"""Generate bus route/stop discovery catalogue (standard library only).
+
+The third-party data can contain stale/mismatched route-stop pairs. The web app
+verifies operator-specific route membership with official APIs at selection time.
+Do NOT use catalogue entries directly as authoritative ETA stop assignments.
+"""
 import json, os, pathlib, sys, tempfile, urllib.request
 from datetime import datetime, timezone
 SOURCE_URLS=['https://data.hkbus.app/routeFareList.min.json','https://hkbus.github.io/hk-bus-crawling/routeFareList.min.json']

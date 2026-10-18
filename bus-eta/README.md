@@ -1,45 +1,77 @@
-# HK Bus ETA — dark iPhone dashboard
+# HK Bus ETA — Dashboard v2.0
 
-This is a working *HTML/JavaScript dashboard implementation*, inspired by the supplied dashboard screenshot. It is **not a native Shortcuts dashboard view**, and does not modify the existing financial dashboard pictured in the screenshot.
+Native HTML/CSS/JavaScript Hong Kong bus arrival dashboard for GitHub Pages and Apple Shortcuts. English interface; Traditional Chinese bus stop and destination names when supplied by the data source.
 
-## Files
+## What v2 fixes
 
-- `index.html`, `styles.css`, `app.js` — mobile-first dashboard with Overview, Favourites, Nearby, Routes, Settings.
-- `make_catalogue.py` — Python standard-library script to produce **geolocated** `catalogue.json` with operator-native stop IDs. It downloads public metadata from hkbus/hk-bus-crawling (data.hkbus.app / GitHub fallback).
-- `build_launcher.py` — generates a native two-action **unsigned** `.shortcut` to open the HTTPS-hosted dashboard. Sign on Mac with Apple Shortcuts.
-- `manifest.webmanifest` — basic Safari "Add to Home Screen" metadata.
+- Search `102` returns route **102** only, grouped into its inbound and outbound directions. It does not match `102` hidden in a destination, stop name, or another route number.
+- Each route/direction appears once, with KMB/Citybus/Long Win badges for available operators.
+- Clicking a group obtains official operator **route-stop lists**, rather than trusting the third-party catalogue's route-stop mapping.
+- Boarding stops on the same physical location are combined when their coordinates are close, and the next arrivals from participating operators are merged and labelled.
+- An empty official ETA is displayed as "No ETA predicted"; HTTP/network errors are shown separately, not as zero arrivals.
+- Favourites persist locally, with backup import/export. Nearby routes are grouped the same way as Routes.
+- Relative HTML asset references include a v2 cache-buster to avoid the older JavaScript remaining cached in Safari.
 
-## Try the design immediately
+## Deploy to your existing GitHub repository (akimoto0811/Smart-Dashboard)
 
-Open `index.html` in a desktop browser. The app starts in **DEMO PREVIEW** mode and shows sample arrivals. These are fictional values and are always labelled as sample data. Preview requires no account, API or hosting.
+**IMPORTANT:** Keep your existing `bus-eta/catalogue.json` online. It is your 14.18 MB, 73,694-record route-discovery catalogue and is **not** included in this zip. Rebuilding or reuploading it is not necessary for the fix.
 
-## Enable live arrivals and Nearby on iPhone
+1. Unzip this package on your Mac. It contains one `bus-eta` folder with seven code files: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `make_catalogue.py`, `build_launcher.py`, `README.md`.
+2. Open: https://github.com/akimoto0811/Smart-Dashboard/tree/main/bus-eta
+3. Click **Add file → Upload files** (inside the existing `bus-eta` folder).
+4. Open the *extracted* `bus-eta` folder in Finder, select **all seven files inside** the folder, and drag those files into GitHub. **Do not drag the parent `bus-eta` folder while already inside `/bus-eta/`**, as doing so could create `bus-eta/bus-eta/`.
+5. Confirm the upload list shows `app.js`, `index.html`, `styles.css` and the other files, all in the existing `/bus-eta/` path. Commit with message `Rebuild grouped HK Bus ETA dashboard v2`.
+6. Visit the [GitHub Actions page](https://github.com/akimoto0811/Smart-Dashboard/actions) and wait for **pages build and deployment → Success**.
+7. Open https://akimoto0811.github.io/Smart-Dashboard/bus-eta/ in Safari. Refresh. Select **Go live**, then **Routes**, search `102`, choose a direction, select your actual bus stop, then review ETAs.
 
-1. On a Mac with Python 3, run `python3 make_catalogue.py`. This downloads public stop metadata and generates `catalogue.json`. **An Internet connection is required on the Mac.** Metadata changes require rebuilding this file; ETA calls are live.
-2. Publish the **contents** of this folder (`index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `catalogue.json`) using **HTTPS** static hosting, such as your own GitHub Pages repository. Enable Pages for the main branch/root folder. The site URL will look like `https://USERNAME.github.io/REPOSITORY/`.
-3. Open the public HTTPS URL in Safari on your iPhone, choose **Go live**, then grant **Location** permission when using Nearby. Safari's "Add to Home Screen" can pin it like an app.
-4. **Apple Shortcut launcher**: On your Mac, run `python3 build_launcher.py 'https://USERNAME.github.io/REPOSITORY/'`, then run the `shortcuts sign --mode anyone` command printed by the script. Import the signed `HK Bus Dashboard.signed.shortcut` in Mac Shortcuts and sync it to iPhone. Its two native actions are URL → Open URLs; the dashboard itself runs in Safari.
+No server or API credentials are needed for this design; however, the public operator APIs must allow your browser's requests (CORS). If Safari reports a request/network error, this is a hosting limitation that would need a compatible relay or native Shortcut request—not fabricated times.
 
-### Without hosting
+## API data architecture
 
-You can inspect the sample dashboard in a desktop browser. Some iPhone local-file viewers disable JavaScript, GPS or API access; **do not expect live Nearby to work from Files > Quick Look or a `data:` URL**. Hosting via HTTPS is the supported interactive configuration.
+- Catalogue source: `data.hkbus.app/routeFareList.min.json` converted to operator-specific JSON. Used for **discovering** route numbers, directions, and approximate nearby routes only; may contain stale route-stop associations.
+- Citybus authoritative route-stop: `https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/{route}/{inbound|outbound}`
+- Citybus stop detail: `https://rt.data.gov.hk/v2/transport/citybus/stop/{stop_id}`
+- Citybus ETA: `https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/{stop_id}/{route}`
+- KMB / Long Win authoritative route-stop: `https://data.etabus.gov.hk/v1/transport/kmb/route-stop/{route}/{inbound|outbound}/{service_type}`
+- KMB / Long Win stop detail: `https://data.etabus.gov.hk/v1/transport/kmb/stop/{stop_id}`
+- KMB / Long Win ETA: `https://data.etabus.gov.hk/v1/transport/kmb/eta/{stop_id}/{route}/{service_type}`
 
-### Data notes and limitations
+Live ETAs are not estimates generated by the dashboard; they are operator ISO-8601 timestamps converted to minutes remaining. Operator responses can legitimately contain no ETA for a given stop and time. Arrival times and GPS features require testing on your iPhone.
 
-- ETA endpoints: KMB/LWB `https://data.etabus.gov.hk/v1/transport/kmb/eta/{stop_id}/{route}/{service_type}`; Citybus V2 `https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/{stop_id}/{route}`.
-- Browser-to-operator API requests **can be rejected by cross-origin (CORS) policy**. We could not confirm the operators' CORS settings here; if blocked, use a correctly configured server-side relay, or perform requests in native Apple Shortcuts and render a static dashboard. The app **does not fake ETA values on failed live requests**.
-- Favourites in the dashboard use local browser storage. To use favourites from the earlier native Shortcut, open **Settings → Import favourites.json**, choose that file from iCloud Drive/Shortcuts/HK Bus ETA. Use **Export favourites** to transfer them back manually.
-- An existing v1 `catalogue.json` generated for the earlier native Shortcut can be imported through Settings. However, it contains approximate 0.01-degree grid cells, not exact stop coordinates: Nearby is approximate with that file. The new catalogue script produces exact metadata coordinates.
-- Route matching relies on operator-provided metadata; different directions and service types must be checked independently. Predicted ETAs are not guarantees.
-- Geolocation occurs in Safari; the GPS coordinates are used inside the browser to find stops locally. The ETA request sends the selected route and stop ID to its operator.
-- The Mac-generated Shortcut is an **unverified native workflow** until signed/imported/tested on macOS/iOS. The HTML UI receives local browser smoke testing, but end-to-end ETA/GPS operation requires your device and live network.
+## Browser storage
 
-## Browser demo test
+- `localStorage` stores Live/Demo mode and saved favourites (`hkbus_favourites_v2`), retaining compatibility with older single-operator favourite records.
+- IndexedDB caches the stop catalogue, which is also loaded directly from `catalogue.json` in this folder.
+- Official route-stop response cache lasts one hour per route/direction/operator/service type; ETA cache lasts 45 seconds; Refresh clears caches.
+- Favourite changes in Safari are **not automatically synchronized** with the separate native `.shortcut` favourites. Export/import JSON for transfer.
 
-On macOS, you can optionally preview with:
+## Mac Shortcut launcher (optional)
+
+If you want a native Shortcut icon that opens the already-hosted dashboard, run on your Mac:
 
 ```sh
-python3 -m http.server 8020
+cd /path/to/extracted/bus-eta
+python3 build_launcher.py "https://akimoto0811.github.io/Smart-Dashboard/bus-eta/"
+shortcuts sign --mode anyone --input "HK Bus Dashboard.unsigned.shortcut" --output "HK Bus Dashboard.signed.shortcut"
 ```
 
-Then visit `http://localhost:8020/` in your Mac browser. `localhost` also supports development geolocation in most browsers, but it will not make live HK ETAs reachable if operator CORS blocks them.
+Open the signed file to import into Shortcuts. Mac signing and iPhone import are not testable from this development environment.
+
+## QA status
+
+**Locally passed in an isolated Chromium browser with simulated operator API responses:** exact route number matching, joint service grouping by direction, rejection of a known invalid Citybus route-stop (`102`/`001304`), validation of a correct Citybus stop (`001303`), simultaneous Citybus+KMB ETA display, favourites, grouped nearby routes, and no uncaught JavaScript exceptions.
+
+**Not yet verified on real iPhone/network:** cross-origin API access in your Safari, actual current ETA readings across operators, location permissions/accuracy, and larger route catalogues under live device conditions. Live site deployment must be verified after you commit the files.
+
+## Keep and replace summary
+
+| Path | Action |
+|---|---|
+| `bus-eta/app.js` | Replace (completely rewritten) |
+| `bus-eta/styles.css` | Replace |
+| `bus-eta/index.html` | Replace (v2 cache-buster) |
+| `bus-eta/README.md` | Replace |
+| `bus-eta/make_catalogue.py` | Replace (discovery-only disclaimer; no need to re-run) |
+| `bus-eta/build_launcher.py` | Replace with compatible launcher source (function unchanged) |
+| `bus-eta/manifest.webmanifest` | Replace with compatible manifest source (function unchanged) |
+| `bus-eta/catalogue.json` | **Keep original** (do not delete or replace) |
