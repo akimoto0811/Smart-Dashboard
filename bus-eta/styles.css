@@ -128,3 +128,21 @@ button,input,select {touch-action:manipulation}
 .diagnostics-card[open] summary{margin-bottom:6px}
 .diag-section{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
 .diag-section .card-title{margin-bottom:10px}
+
+/* v3.5: compact Nearby toolbar */
+.nearby-toolbar{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.nearby-toolbar .select{width:auto;flex:0 0 auto;height:34px;padding:0 30px 0 12px;border-radius:999px;font-size:13px;background-position:right 12px center;background-size:10px}
+.nearby-gps{flex:1;min-width:0;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nearby-locate{margin-left:auto;height:34px;padding:0 13px;border-radius:999px;border:1px solid #3f786b;background:#152d30;color:var(--mint);font-size:13px;font-weight:700;white-space:nowrap}
+.nearby-locate:active{transform:scale(.96)}
+
+.nearby-progress{height:3px;margin:0 2px 8px;background:var(--line);border-radius:3px;overflow:hidden}
+.nearby-progress span{display:block;height:100%;background:var(--mint);border-radius:3px;transition:width .3s}
+.nearby-warn{height:34px;width:34px;flex:none;border-radius:999px;border:1px solid #6a4b38;background:#332c27;color:#ffd98c;font-size:14px;padding:0}
+.nearby-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 6px;min-width:56px;line-height:1.05}
+.nearby-tile small{font-size:8.5px;font-weight:800;letter-spacing:.4px;opacity:.75}
+.nearby-tile.op-ctb{background:#3a3220;color:#ffe08a}
+.nearby-tile.op-kmb,.nearby-tile.op-lwb{background:#3a2228;color:#ffc2c8}
+.nearby-route-eta.arriving strong{color:#ffbf47}
+.nearby-more{width:100%;border:0;border-bottom:1px solid var(--line);background:none;color:var(--mint);font-size:12px;font-weight:700;padding:10px 0;text-align:left}
+.nearby-live-card{padding:9px 0}
