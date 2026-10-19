@@ -252,10 +252,11 @@ function groupRows(groups,mode='normal'){return groups.map((g,i)=>{
  const arrival=mode==='nearby'?`<span class="nearby-route-eta ${first?'has-eta':n?.pending?'checking-eta':'no-eta'}">${first?
    `<strong>${etaMinutes(first.at)===0?(state.lang==='tc'?'即將到站':'Due'):etaMinutes(first.at)+(state.lang==='tc'?' 分鐘':' min')}</strong><small>${esc(names[first.operator]||first.operator)}</small>`:
    `<small>${n?.pending?'Checking ETA…':n?.failed?'ETA unavailable':'No upcoming ETA'}</small>`}</span>`:'';
- const nearest=mode==='nearby'&&Number.isFinite(g.nearestDistance)?` · ${Math.round(g.nearestDistance)} ${state.lang==='tc'?'米':'m'}`:'';
- const stop=mode==='nearby'&&first?.stopName?`<span class="nearby-boarding">${esc(first.stopName)}</span>`:'';
- return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}">
- <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(localizedDestination(g))}</strong><span class="group-meta">${g.direction==='O'?'Outbound':'Inbound'}${nearest}</span>${stop}${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
+ // Nearby rows name the boarding stop whose ETA they show, not the direction.
+ const stopDistance=n?.stop&&state.position&&goodPosition(n.stop)?distance(state.position.lat,state.position.lng,n.stop.lat,n.stop.lng):null;
+ const meta=mode==='nearby'&&n?.stop?`<span class="meta-stop">${esc(localizedStop(n.stop))}</span>`+(stopDistance!==null?`<span class="meta-distance"> · ${stopDistance} ${state.lang==='tc'?'米':'m'}</span>`:''):(g.direction==='O'?'Outbound':'Inbound');
+ return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}"${n?.stop?` data-focus="${esc(n.stop.operator+'|'+n.stop.stop_id)}"`:''}>
+ <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(localizedDestination(g))}</strong><span class="group-meta">${meta}</span>${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
  }).join('');}
 function favouriteETAMarkup(f,i){
  const result=state.demo?null:combinedETAs(f),first=result?.arr[0];
@@ -638,9 +639,10 @@ function orderJourneyStops(clusters){
 }
 function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;}
 function closeDialog(){state.dialogToken++;if(stopObserver){stopObserver.disconnect();stopObserver=null;}state.expandedStopKey=null;$('#modalScrim').classList.add('hidden');state.currentGroup=null;state.currentStop=null;}
-async function openGroup(key){
+async function openGroup(key,focus=''){
  const groups=state.view==='nearby'?makeGroups(state.nearby):routeResults();
  let group=groups.find(g=>g.key===key);if(!group)return;
+ const fromNearby=state.view==='nearby'&&!!state.position;
  const token=++state.dialogToken,selected=group.items[0];
  state.currentGroup=group;state.currentStop=null;state.routeFailures=[];state.loadingNames=0;state.expandedStopKey=null;
  dialog(group.route+' → '+localizedDestination(group));
@@ -664,7 +666,12 @@ async function openGroup(key){
   // A newly opened full route always starts at its first stop. Do not carry a
   // previous route's scroll offset into this modal.
   const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;
+  // From Nearby, open on the stop the row showed (else the nearest) so the ETAs match.
+  const focusIndex=focus?state.verified.findIndex(c=>c.variants.some(v=>v.operator+'|'+v.stop_id===focus)):-1;
+  const nearestIndex=!fromNearby?-1:focusIndex>=0?focusIndex:state.verified.reduce((best,s,i)=>s.distance!==null&&(best<0||s.distance<state.verified[best].distance)?i:best,-1);
+  if(nearestIndex>=0)state.expandedStopKey=stopKey(state.verified[nearestIndex]);
   drawStopPicker(token);void resolveStopDetails(data,group,token);
+  if(nearestIndex>=0){$(`#modalBody [data-stop-index="${nearestIndex}"]`)?.scrollIntoView({block:'center'});void updateRowETA(nearestIndex,token);}
  }catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
 }
 
@@ -793,7 +800,7 @@ function parseNearbyETA(it,json){
   if(x.stop&&clean(x.stop)!==it.stop_id)continue;
   const key=route+'|'+direction;
   if(!map.has(key))map.set(key,[]);
-  map.get(key).push({at,operator:it.operator,stop_id:it.stop_id});
+  map.get(key).push({at,operator:it.operator,stop_id:it.stop_id,service_type:x.service_type==null?'':String(x.service_type)});
  }
  for(const a of map.values())a.sort((x,y)=>x.at-y.at);
  return map;
@@ -814,29 +821,40 @@ async function getNearbyStopETA(it,force=false){
  nearbyETAState.inFlight.set(key,task);
  try{return await task;}finally{if(nearbyETAState.inFlight.get(key)===task)nearbyETAState.inFlight.delete(key);}
 }
+// The nearest stop of a route/direction, plus other operators' poles (or
+// service types) at the same spot, mirrors the merged stop the route dialog
+// marks "Nearest", so the row shows the same ETA as that stop.
+const NEARBY_SAME_STOP_M=40;
+function nearbyBoardingItems(g){
+ if(!state.position)return g.items;
+ const located=g.items.filter(goodPosition).map(it=>({it,d:distance(state.position.lat,state.position.lng,it.lat,it.lng)})).sort((a,b)=>a.d-b.d);
+ if(!located.length)return g.items;
+ const nearest=located[0].it;
+ return located.filter(x=>x.it===nearest||distance(nearest.lat,nearest.lng,x.it.lat,x.it.lng)<=NEARBY_SAME_STOP_M).map(x=>x.it);
+}
 function nearbyGroupETA(g){
  let arrival=null,pending=false,failed=false;
- const visited=new Set(),now=Date.now();
- for(const it of g.items){
-  const key=nearbyStopKey(it);if(visited.has(key+'|'+it.route+'|'+it.direction))continue;
-  visited.add(key+'|'+it.route+'|'+it.direction);
+ const visited=new Set(),now=Date.now(),boarding=nearbyBoardingItems(g);
+ for(const it of boarding){
+  const key=nearbyStopKey(it),seen=key+'|'+it.route+'|'+it.direction+'|'+it.service_type;if(visited.has(seen))continue;
+  visited.add(seen);
   const record=nearbyETAState.cache.get(key);
   if(!record||now-record.time>NEARBY_ETA_TTL){pending=true;continue;}
   if(record.error){failed=true;continue;}
-  const options=record.routes.get(it.route+'|'+it.direction)||[];
+  // KMB stop-level ETAs cover every service type; keep the one this stop serves.
+  const options=(record.routes.get(it.route+'|'+it.direction)||[]).filter(x=>it.operator==='CTB'||!x.service_type||x.service_type===String(it.service_type||'1'));
   const next=options.find(x=>x.at>=now-30000);
-  if(next&&(!arrival||next.at<arrival.at)){
-   arrival={...next,stopName:state.lang==='tc'?(it.name_tc||it.name):(it.name_en||it.name)};
-  }
+  if(next&&(!arrival||next.at<arrival.at))arrival={...next,item:it};
  }
- return {arrival,pending,failed:failed&&!pending&&!arrival};
+ return {arrival,pending,failed:failed&&!pending&&!arrival,stop:arrival?.item||boarding[0]||null};
 }
 function startNearbyETAScan(force=false){
  ++nearbyETAState.generation;
  const token=nearbyETAState.generation;
  if(!state.position||!state.nearby.length){nearbyETAState.progress=null;return;}
+ // Only the boarding stop each nearby row shows needs its arrivals checked.
  const nearest=new Map();
- for(const it of state.nearby){
+ for(const it of makeGroups(state.nearby).flatMap(nearbyBoardingItems)){
   const key=nearbyStopKey(it),dist=distance(state.position.lat,state.position.lng,it.lat,it.lng);
   if(!nearest.has(key)||dist<nearest.get(key).distance)nearest.set(key,{it,distance:dist});
  }
@@ -896,7 +914,7 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='filterOp'){state.operator=el.dataset.value;render();if(state.query.trim()&&routeResults().every(g=>g.route===clean(state.query)))void ensurePhysicalRoute(clean(state.query));}
  if(action==='setLanguage'){state.lang=el.dataset.value==='tc'?'tc':'en';persist('hkbus_lang',state.lang);render();}
  if(action==='setStartPage'){const next=el.dataset.value;if(START_PAGES.includes(next)){state.startPage=next;persist('hkbus_start_page',next);render();}}
- if(action==='openGroup')openGroup(el.dataset.group);
+ if(action==='openGroup')openGroup(el.dataset.group,el.dataset.focus);
  if(action==='openFavourite')openFavourite(Number(el.dataset.index));
  if(action==='expandStop'){const index=Number(el.dataset.index),s=state.verified[index];if(s){state.expandedStopKey=state.expandedStopKey===stopKey(s)?null:stopKey(s);drawStopPicker(state.dialogToken);if(state.expandedStopKey)void updateRowETA(index,state.dialogToken);}}
  if(action==='saveExpanded'){const s=state.verified.find(x=>stopKey(x)===state.expandedStopKey);if(s&&!state.demo){const idx=state.favourites.findIndex(f=>favID(f)===favID(s));if(idx>=0)state.favourites.splice(idx,1);else state.favourites.push({...s});persist('hkbus_favourites_v2',state.favourites);drawStopPicker(state.dialogToken);render();}}
