@@ -56,14 +56,18 @@ def build(db):
     if not(22.0<lat<22.7 and 113.7<lng<114.6):continue
     stopname=str(name.get('zh') or name.get('en') or 'Bus stop') if isinstance(name,dict) else str(name)
     stopname_en=str(name.get('en') or '') if isinstance(name,dict) else str(name)
-    nativeids=[str(pair[1]).upper() for pair in (stopmap.get(sharedid) or []) if isinstance(pair,(list,tuple)) and len(pair)>1 and str(pair[0]).lower()==rawop]
-    for stopid in nativeids:
+    # routeList stops are the operator's own stop IDs. stopMap lists OTHER
+    # stops at the same spot (mostly other operators'), so it only feeds the
+    # shared ID used to merge KMB and Citybus poles, never the stop ID itself.
+    pairs=[(str(pair[0]).lower(),str(pair[1]).upper()) for pair in (stopmap.get(sharedid) or []) if isinstance(pair,(list,tuple)) and len(pair)>1]
+    shared=min([f'{rawop}:{sharedid.upper()}']+[f'{c}:{i}' for c,i in pairs])
+    for stopid in [sharedid.upper()]:
      if op=='CTB' and not(len(stopid)==6 and stopid.isdigit()):continue
      if op!='CTB' and not(len(stopid)==16 and all(c in '0123456789ABCDEF' for c in stopid)):continue
      key=(op,route,direction,stopid,service)
      entries[key]={'operator':op,'route':route,'direction':direction,'stop_id':stopid,'service_type':service,
                    'name':stopname,'name_en':stopname_en,'destination':destination,'destination_en':destination_en,'lat':round(lat,6),'lng':round(lng,6),
-                   'shared_stop_id':sharedid}
+                   'shared_stop_id':shared}
  return list(entries.values())
 
 def compact(entries):
