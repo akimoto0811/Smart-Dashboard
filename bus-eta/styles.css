@@ -109,3 +109,7 @@ button,input,select {touch-action:manipulation}
 .nearby-wait{padding:13px 15px;color:var(--muted);font-size:12px}
 
 .nearby-warning{padding:8px 12px;color:#ffd98c}
+
+/* v3.2: Nearby opens the complete route; mark and locate the boarding stop. */
+.nearby-jump{display:block;margin:8px 0 14px;width:100%;text-align:center}
+.stop-row.boarding-highlight .stop-main{background:rgba(108,222,164,.09)}

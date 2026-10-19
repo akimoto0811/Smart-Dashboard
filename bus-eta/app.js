@@ -1,5 +1,5 @@
 'use strict';
-/* HK Bus ETA 3.1. Route-discovery catalogue != authoritative operator route-stop list. */
+/* HK Bus ETA 3.2. Route-discovery catalogue != authoritative operator route-stop list. */
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const storage = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
@@ -25,7 +25,7 @@ const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
 const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null,
  officialKMB:[],officialKMBLoadedAt:0,officialKMBPending:null,officialKMBError:null,scanStops:[],liveCards:[]};
-const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
+const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],nearbyFocus:null,routeRetry:null,loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
 // UI translations only. Route numbers/IDs and stored JSON keys are never translated.
 const UI_ZH = {
  'Hong Kong ·':'香港 ·', 'HONG KONG ·':'香港 ·',
@@ -637,32 +637,66 @@ function orderJourneyStops(clusters){
  return sortable.map(({s},index)=>({...s,stopNumber:index+1,totalStops:sortable.length}));
 }
 function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;}
-function closeDialog(){state.dialogToken++;if(stopObserver){stopObserver.disconnect();stopObserver=null;}state.expandedStopKey=null;$('#modalScrim').classList.add('hidden');state.currentGroup=null;state.currentStop=null;}
-async function openGroup(key){
+function closeDialog(){state.dialogToken++;if(stopObserver){stopObserver.disconnect();stopObserver=null;}state.expandedStopKey=null;state.nearbyFocus=null;state.routeRetry=null;$('#modalScrim').classList.add('hidden');state.currentGroup=null;state.currentStop=null;}
+// Nearby's ETA-first card is a route entry, not an isolated ETA dialog.
+// Retain its exact native boarding stop IDs while resolving the complete
+// operator route-stop lists. This also works for night routes missing from
+// the third-party discovery catalogue.
+async function openGroup(key,nearbyCard=null){
  const groups=state.view==='nearby'?makeGroups(state.nearby):routeResults();
- let group=groups.find(g=>g.key===key);if(!group)return;
- const token=++state.dialogToken,selected=group.items[0];
+ let group=nearbyCard?{
+  key:nearbyCard.route+'|'+nearbyCard.direction,route:nearbyCard.route,
+  direction:nearbyCard.direction,items:nearbyCard.variants.slice(),
+  operators:[...new Set(nearbyCard.variants.map(v=>v.operator))],
+  destination:nearbyCard.destination_tc||nearbyCard.destination_en||'',
+  destination_en:nearbyCard.destination_en||'',
+  destination_tc:nearbyCard.destination_tc||''
+ }:groups.find(g=>g.key===key);
+ if(!group||!group.items?.length)return;
+ const selected=nearbyCard?
+  (nearbyCard.variants.find(v=>v.operator===nearbyCard.next?.operator&&v.direction===nearbyCard.next?.direction)||nearbyCard.variants[0]):
+  group.items[0];
+ // The modal opens at stop 1. A marked boarding stop and optional jump
+ // control preserve the convenience of the Nearby list without reordering.
+ const picked=nearbyCard?nearbyCard.variants:
+  state.view==='nearby'?[nearbyBoardingItem(group)].filter(Boolean):[];
+ state.nearbyFocus=picked.length?{route:group.route,keys:picked.map(nativeLinkKey)}:null;
+ const token=++state.dialogToken;
+ state.routeRetry={key,nearbyCard};
  state.currentGroup=group;state.currentStop=null;state.routeFailures=[];state.loadingNames=0;state.expandedStopKey=null;
  dialog(group.route+' → '+localizedDestination(group));
- $('#modalBody').innerHTML='<p class="hint loading">Verifying route direction and stops…</p>';
+ $('#modalBody').innerHTML='<p class="hint loading">Verifying complete route and stop order…</p>';
  try{
   await ensurePhysicalRoute(group.route);
   if(token!==state.dialogToken)return;
-  // Re-map the selected operator trip to the correct physical direction.
+  // Resolve the selected native operator/direction first: a joint route
+  // may use opposite O/I direction codes for KMB and Citybus.
   const resolved=physicalDirection(selected,new Set(group.items.map(x=>x.operator)));
   const correctedKey=group.route+'|'+resolved;
-  const all=state.groups.find(g=>g.key===correctedKey);
-  group=all||makeGroups(state.view==='nearby'?state.nearby:state.catalogue).find(g=>g.key===correctedKey)||group;
+  const matchesTrip=g=>g.route===group.route&&g.items.some(v=>
+   v.operator===selected.operator&&v.direction===selected.direction);
+  const full=state.groups.find(g=>g.key===correctedKey&&matchesTrip(g))||
+   state.groups.find(matchesTrip);
+  group=full||group;
+  if(nearbyCard){
+   const items=group.items.slice();
+   // Include the selected live native stop even when the catalogue omits
+   // this route or its service type; it will be re-verified by officialGroup.
+   for(const v of nearbyCard.variants)if(!items.some(x=>
+     x.operator===v.operator&&x.direction===v.direction&&x.stop_id===v.stop_id))items.push(v);
+   group={...group,items,operators:[...new Set(items.map(v=>v.operator))],
+    destination:nearbyCard.destination_tc||group.destination,
+    destination_en:nearbyCard.destination_en||group.destination_en||'',
+    destination_tc:nearbyCard.destination_tc||group.destination_tc||''};
+  }
   state.currentGroup=group;
   $('#modalTitle').textContent=group.route+' → '+localizedDestination(group);
-  $('#modalBody').innerHTML='<p class="hint loading">Checking verified operator stop lists…</p>';
+  $('#modalBody').innerHTML='<p class="hint loading">Checking all verified stops from first stop to terminus…</p>';
   await stopLinksReady;
   if(token!==state.dialogToken)return;
   const data=await officialGroup(group);
   if(token!==state.dialogToken)return;
   state.verified=data.stops;state.routeFailures=data.warnings;state.loadingNames=data.missing.length;
-  // A newly opened full route always starts at its first stop. Do not carry a
-  // previous route's scroll offset into this modal.
   const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;
   drawStopPicker(token);void resolveStopDetails(data,group,token);
  }catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
@@ -703,8 +737,12 @@ function drawStopPicker(token){if(token!==state.dialogToken)return;
  const modal=$('#modalScrim .modal'),scrollTop=modal?.scrollTop||0;
  const listScrollTop=$('#modalBody .stop-list')?.scrollTop||0;
  const closestIndex=state.position&&state.verified.length?state.verified.reduce((best,s,i)=>s.distance!==null&&(best<0||s.distance<state.verified[best].distance)?i:best,-1):-1;
+ const focus=state.nearbyFocus?.route===state.currentGroup?.route?new Set(state.nearbyFocus.keys):null;
+ const focusIndex=focus?.size?state.verified.findIndex(s=>s.variants.some(v=>focus.has(nativeLinkKey(v)))):-1;
+ const highlightedIndex=focusIndex>=0?focusIndex:closestIndex;
  let body='<div class="stop-picker-caption">'+esc(localizedDestination(state.currentGroup||{}))+' · Select your boarding stop</div>';
  if(state.verified.length)body+='<p class="small-note journey-summary">'+fmt(state.verified.length)+' stops · Ordered from first stop to terminus</p>';
+ if(focusIndex>0)body+='<button class="ghost-button nearby-jump" data-action="jumpNearbyStop">'+(state.lang==='tc'?'前往附近上車站':'Jump to your nearby stop')+' · '+(focusIndex+1)+'</button>';
  if(state.routeFailures.length)body+='<div class="notice">Some operators could not be loaded: '+esc(state.routeFailures.join('; '))+'</div>';
  if(state.loadingNames>0)body+='<p class="small-note" aria-live="polite">'+fmt(state.loadingNames)+' stop names are being verified in the background.</p>';
  if(!state.verified.length)body+='<div class="notice">No verified stops available for this service.</div>';
@@ -712,7 +750,7 @@ function drawStopPicker(token){if(token!==state.dialogToken)return;
  const expanded=state.expandedStopKey===stopKey(s);
   const spread=s.distance!==null&&s.farthestDistance!==null&&s.farthestDistance-s.distance>25;
   const distanceLabel=s.distance!==null?' · '+esc(s.distance)+(spread?'–'+esc(s.farthestDistance):'')+' m':'';
- return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-ordinal" aria-label="Stop '+(i+1)+'">'+(i+1)+'</span><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+(i===closestIndex?' <span class="nearest-label">Nearest</span>':'')+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
+ return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-ordinal" aria-label="Stop '+(i+1)+'">'+(i+1)+'</span><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+(i===highlightedIndex?' <span class="nearest-label">'+(focusIndex>=0?(state.lang==='tc'?'附近上車站':'Your nearby stop'):(state.lang==='tc'?'最近':'Nearest'))+'</span>':'')+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
  }).join('')+'</div>';
  $('#modalBody').innerHTML=body;
  if(modal)modal.scrollTop=scrollTop;
@@ -990,16 +1028,20 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='setLanguage'){state.lang=el.dataset.value==='tc'?'tc':'en';persist('hkbus_lang',state.lang);render();}
  if(action==='setStartPage'){const next=el.dataset.value;if(START_PAGES.includes(next)){state.startPage=next;persist('hkbus_start_page',next);render();}}
  if(action==='openGroup')openGroup(el.dataset.group);
- if(action==='openNearbyETA'){const c=nearbyETAState.liveCards[Number(el.dataset.index)];if(c){state.currentGroup=null;showStop({route:c.route,direction:c.direction,
- destination:c.destination_tc||c.destination_en,destination_en:c.destination_en,destination_tc:c.destination_tc,
- name:c.name_tc,name_en:c.name_en,name_tc:c.name_tc,variants:c.variants});}}
+ if(action==='openNearbyETA'){const c=nearbyETAState.liveCards[Number(el.dataset.index)];if(c)void openGroup('',c);} 
+ if(action==='jumpNearbyStop'){
+  const ids=new Set(state.nearbyFocus?.keys||[]);
+  const index=state.verified.findIndex(s=>s.variants.some(v=>ids.has(nativeLinkKey(v))));
+  const row=document.querySelector('#modalBody [data-stop-index="'+index+'"]');
+  if(row){row.scrollIntoView({block:'center',behavior:'smooth'});row.classList.add('boarding-highlight');}
+ }
  if(action==='openFavourite')openFavourite(Number(el.dataset.index));
  if(action==='expandStop'){const index=Number(el.dataset.index),s=state.verified[index];if(s){state.expandedStopKey=state.expandedStopKey===stopKey(s)?null:stopKey(s);drawStopPicker(state.dialogToken);if(state.expandedStopKey)void updateRowETA(index,state.dialogToken);}}
  if(action==='saveExpanded'){const s=state.verified.find(x=>stopKey(x)===state.expandedStopKey);if(s&&!state.demo){const idx=state.favourites.findIndex(f=>favID(f)===favID(s));if(idx>=0)state.favourites.splice(idx,1);else state.favourites.push({...s});persist('hkbus_favourites_v2',state.favourites);drawStopPicker(state.dialogToken);render();}}
  if(action==='refreshExpanded'){const index=state.verified.findIndex(x=>stopKey(x)===state.expandedStopKey);if(index>=0)void updateRowETA(index,state.dialogToken,true);}
  if(action==='selectStop'){const s=state.verified[Number(el.dataset.index)];if(s)showStop(s);}
  if(action==='backToStops'){++state.dialogToken;state.currentStop=null;$('#modalTitle').textContent=state.currentGroup?.route||'Stops';drawStopPicker(state.dialogToken);}
- if(action==='retryRoute'&&state.currentGroup){openGroup(state.currentGroup.key);}
+ if(action==='retryRoute'&&state.routeRetry){const {key,nearbyCard}=state.routeRetry;void openGroup(key,nearbyCard);}
  if(action==='refreshStop'&&state.currentStop)showStop(state.currentStop,true);
  if(action==='toggleFav')toggleFav();
  if(action==='locate')locate();
