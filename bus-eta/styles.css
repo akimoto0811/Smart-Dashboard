@@ -102,3 +102,6 @@ button,input,select {touch-action:manipulation}
 .nearby-secondary-label{color:var(--muted);border-top:1px solid var(--line);margin-top:10px;padding-top:14px}
 .nearby-scan-status{margin:-6px 0 10px 2px}
 @media(max-width:390px){.nearby-route-eta{flex-basis:67px;min-width:67px}.nearby-route .arrival-bus{min-width:49px;font-size:16px;padding:9px 5px}.nearby-route .group-info strong{font-size:13px}.nearby-route .group-arrow{font-size:19px;padding:2px}}
+
+/* Inputs at 16px stop iOS Safari zooming in on focus now that pinch-zoom is allowed. */
+.field,.select{font-size:16px}
