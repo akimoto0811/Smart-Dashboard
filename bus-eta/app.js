@@ -1,5 +1,5 @@
 'use strict';
-/* HK Bus ETA 2.9. Route-discovery catalogue != authoritative operator route-stop list. */
+/* HK Bus ETA 3.0. Route-discovery catalogue != authoritative operator route-stop list. */
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const storage = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
@@ -23,6 +23,7 @@ const demoStops = [
 ];
 const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
+const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null};
 const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
 // UI translations only. Route numbers/IDs and stored JSON keys are never translated.
 const UI_ZH = {
@@ -37,6 +38,7 @@ const UI_ZH = {
  'Showing the first 100 results; refine your search.':'只顯示首 100 項，請縮窄搜尋範圍。',
  'Enter a route number to find its direction and verified stops.':'輸入路線號碼，查找行車方向及已核實的巴士站。',
  'All':'全部','Inbound':'回程','Outbound':'去程','Long Win':'龍運','Citybus':'城巴','KMB':'九巴',
+ 'Checking live arrivals':'正在查詢即時到站時間','Upcoming buses':'即將到站巴士','Checking ETA…':'正在查詢到站時間…','No upcoming ETA':'暫無預計到站班次','ETA unavailable':'無法取得到站資料',
  'Nearby bus services':'附近巴士路線','Locate me':'定位','⌖ Locate me':'⌖ 定位','☆ Add favourite':'☆ 加入收藏','★ Remove favourite':'★ 移除收藏','↻ Refresh':'↻ 重新整理','Routes near you':'附近路線',
  'No routes yet. Allow Safari location access while in Hong Kong.':'暫未找到路線，請在香港使用時允許 Safari 讀取位置。',
  'Checking your location… Tap Locate me if needed':'正在定位… 如有需要請按「定位」',
@@ -231,15 +233,38 @@ restoreFavs();
 const banner = msg => {state.notice=msg;const el=$('#notice');el.textContent=msg;el.classList.toggle('hidden',!msg);};
 const line = (title,desc) => `<div class="section-title">${esc(title)}</div>${desc?`<div class="section-sub">${esc(desc)}</div>`:''}`;
 const operatorChips = ops => `<span class="operators">${ops.map(x=>`<span class="operator-chip">${esc(names[x]||x)}</span>`).join('')}</span>`;
-function groupRows(groups){return groups.map((g,i)=>`<button class="route-group" data-action="openGroup" data-group="${esc(g.key)}">
- <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(localizedDestination(g))}</strong><span class="group-meta">${g.direction==='O'?'Outbound':'Inbound'} · ${fmt(g.stopCount)} stop records</span>${operatorChips(g.operators)}</span><span class="group-arrow">›</span></button>`).join('');}
+function groupRows(groups,mode='normal'){return groups.map((g,i)=>{
+ const n=mode==='nearby'?nearbyGroupETA(g):null;
+ const first=n?.arrival;
+ const arrival=mode==='nearby'?`<span class="nearby-route-eta ${first?'has-eta':n?.pending?'checking-eta':'no-eta'}">${first?
+   `<strong>${etaMinutes(first.at)===0?(state.lang==='tc'?'即將到站':'Due'):etaMinutes(first.at)+(state.lang==='tc'?' 分鐘':' min')}</strong><small>${esc(names[first.operator]||first.operator)}</small>`:
+   `<small>${n?.pending?'Checking ETA…':n?.failed?'ETA unavailable':'No upcoming ETA'}</small>`}</span>`:'';
+ const nearest=mode==='nearby'&&Number.isFinite(g.nearestDistance)?` · ${Math.round(g.nearestDistance)} ${state.lang==='tc'?'米':'m'}`:'';
+ const stop=mode==='nearby'&&first?.stopName?`<span class="nearby-boarding">${esc(first.stopName)}</span>`:'';
+ return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}">
+ <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(localizedDestination(g))}</strong><span class="group-meta">${g.direction==='O'?'Outbound':'Inbound'}${nearest}</span>${stop}${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
+ }).join('');}
 function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedDestination(f))}</strong><span class="group-meta">${esc(localizedStop(f))} · ${f.direction==='O'?'Outbound':'Inbound'}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span><span class="group-arrow">›</span></button>`).join('');}
 function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Your chosen route, direction and boarding stop')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
 function browse(){const q=state.query.trim(), groups=q?routeResults():[], exact=q&&groups.length>0&&groups.every(g=>g.route===clean(q));
  return `<div class="card search-card"><label class="card-title" for="routeSearch">Route number or stop name</label><input id="routeSearch" class="field" autocomplete="off" enterkeyhint="search" placeholder="e.g. 102 or Central" value="${esc(state.query)}"/>${q&&!exact?'<p class="small-note search-hint">Showing matching routes and directions.</p>':''}</div><div class="operator-row route-filters">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div><section id="routeResults" class="route-results">${q?`${line('Routes and directions',`${fmt(groups.length)} grouped result${groups.length===1?'':'s'}`)}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,100)):'<div class="empty">No matching routes. Try another number or stop name.</div>'}</div>${groups.length>100?'<p class="small-note">Showing the first 100 results; refine your search.</p>':''}`:'<div class="search-empty">Enter a route number to find its direction and verified stops.</div>'}</section>`;}
 function nearby(){const candidates=state.demo?demoStops.flatMap(f=>f.variants):state.nearby;
- const groups=makeGroups(candidates);groups.forEach(g=>{g.nearestDistance=Math.min(...g.items.map(x=>state.position&&goodPosition(x)?distance(state.position.lat,state.position.lng,x.lat,x.lng):Infinity));});groups.sort((a,b)=>(a.nearestDistance??Infinity)-(b.nearestDistance??Infinity));
- return `<div class="card nearby-controls"><div class="nearby-heading">Nearby bus services</div><div class="input-row"><select class="select" id="radiusSelect">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select><button class="primary-button" data-action="locate"><span aria-hidden="true">⌖</span> <span>Locate me</span></button></div>${state.position?`<p class="small-note">GPS accuracy ±${Math.round(state.position.accuracy)}m · ${fmt(candidates.length)} nearby route-stop entries</p>`:''}</div>${line('Routes near you',state.demo?'Illustration only':state.position?`${fmt(groups.length)} route / direction groups`:'Checking your location… Tap Locate me if needed')}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,90)):'<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>'}</div>`;}
+ const groups=makeGroups(candidates);groups.forEach(g=>{g.nearestDistance=Math.min(...g.items.map(x=>state.position&&goodPosition(x)?distance(state.position.lat,state.position.lng,x.lat,x.lng):Infinity));});
+ const classified=groups.map(g=>({...g,nearby:nearbyGroupETA(g)}));
+ // Confirmed ETA beats proximity. Loading groups follow; confirmed absence and API errors last.
+ classified.sort((a,b)=>{
+  const rank=g=>g.nearby.arrival?0:g.nearby.pending?1:g.nearby.failed?3:2;
+  return rank(a)-rank(b)||(a.nearby.arrival?.at||Infinity)-(b.nearby.arrival?.at||Infinity)||a.nearestDistance-b.nearestDistance;
+ });
+ const count=classified.filter(g=>!!g.nearby.arrival).length,scan=nearbyETAState.progress;
+ const subtitle=state.demo?'Illustration only':!state.position?'Checking your location… Tap Locate me if needed':
+  `${fmt(count)} ${state.lang==='tc'?'條路線有預計到站時間':'routes with upcoming arrivals'} · ${fmt(groups.length)} ${state.lang==='tc'?'組附近路線':'nearby routes'}`;
+ const progress=state.position&&scan&&scan.total?`<p class="small-note nearby-scan-status" aria-live="polite">${state.lang==='tc'?'已查詢':'Checked'} ${fmt(scan.checked)} / ${fmt(scan.total)} ${state.lang==='tc'?'個巴士站的即時到站資料':'stop locations for live arrivals'}${scan.running?'…':''}</p>`:'';
+ const top=classified.filter(g=>g.nearby.arrival),rest=classified.filter(g=>!g.nearby.arrival);
+ const rows=groups.length?(top.length?`<div class="nearby-list-label">${state.lang==='tc'?'即將到站巴士':'Upcoming buses'}</div>${groupRows(top.slice(0,90),'nearby')}`:'')+
+   (rest.length?`<div class="nearby-list-label nearby-secondary-label">${scan?.running?(state.lang==='tc'?'正在查詢／暫無預報':'Checking / no upcoming ETA'):(state.lang==='tc'?'其他附近路線 · 暫無預報':'Other nearby routes · No upcoming ETA')}</div>${groupRows(rest.slice(0,90),'nearby')}`:''):
+   '<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>';
+ return `<div class="card nearby-controls"><div class="nearby-heading">Nearby bus services</div><div class="input-row"><select class="select" id="radiusSelect">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select><button class="primary-button" data-action="locate"><span aria-hidden="true">⌖</span> <span>Locate me</span></button></div>${state.position?`<p class="small-note">GPS accuracy ±${Math.round(state.position.accuracy)}m · ${fmt(candidates.length)} nearby route-stop entries</p>`:''}</div>${line('Routes near you',subtitle)}${progress}<div class="card no-gap nearby-results">${rows}</div>`;}
 function settings(){return `${line('Preferences','Choose your language and start page')}
  <div class="card settings-preferences"><div class="card-title">Interface language</div><div class="settings-options"><button class="ghost-button ${state.lang==='en'?'selected-language':''}" data-action="setLanguage" data-value="en">English</button><button class="ghost-button ${state.lang==='tc'?'selected-language':''}" data-action="setLanguage" data-value="tc">繁體中文</button></div>
  <div class="card-title settings-label">Start page</div><div class="settings-options settings-start">${[['nearby','Nearby'],['favourites','Favourites'],['browse','Routes']].map(([id,label])=>`<button class="ghost-button ${state.startPage===id?'selected-language':''}" data-action="setStartPage" data-value="${id}">${label}</button>`).join('')}</div><p class="small-note">This page opens when you launch the dashboard. Your choice is saved on this device.</p></div>
@@ -253,6 +278,18 @@ function render(){const titles={favourites:['Favourites','Your frequently used j
  $('#todayLabel').textContent='HONG KONG · '+hkDate().toUpperCase();$('#modeBadge').textContent='LIVE MODE';$('#modeBadge').classList.remove('demo');$('#syncLabel').textContent='HK time '+hkTime();
  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.toggle('selected',el.dataset.view===state.view));
  $('#mainContent').innerHTML=({favourites,nearby,browse,settings}[state.view]||nearby)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));localizeDocument();}
+function refreshNearbyResults(){
+ if(state.view!=='nearby')return;
+ const main=$('#mainContent');if(!main)return;
+ const y=window.scrollY;
+ main.innerHTML=nearby();
+ localizeDocument();
+ if(Math.abs(window.scrollY-y)>1)window.scrollTo(0,y);
+}
+function scheduleNearbyResults(){
+ if(nearbyETAState.updateTimer!==null)return;
+ nearbyETAState.updateTimer=setTimeout(()=>{nearbyETAState.updateTimer=null;refreshNearbyResults();},240);
+}
 function setView(view){state.view=view;banner('');render();scrollTo({top:0,behavior:'instant'});if(view==='nearby'&&!state.demo&&state.catalogue.length){if(state.position)populateNearby();else locate();}}
 async function requestJSON(url,limit=13000){const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),limit);try{const res=await fetch(url,{cache:'no-store',signal:ctrl.signal});if(!res.ok)throw Error('API HTTP '+res.status);return await res.json();}catch(err){if(err.name==='AbortError')throw Error('API request timed out');throw err;}finally{clearTimeout(timeout);}}
 // The operator's current route-stop list is authoritative. Catalogue mappings are NOT.
@@ -702,11 +739,96 @@ function toggleFav(){const s=state.currentStop;if(!s||state.demo){banner('Switch
  persist('hkbus_favourites_v2',state.favourites);showStop(s);render();}
 function openFavourite(index){const f=(state.demo?demoStops:state.favourites)[index];state.currentGroup=null;if(f)showStop(f);}
 function download(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
+// Public stop-level ETA APIs make it possible to check ALL routes calling one
+// unique stop in one request. In particular, Citybus uses the Digital Policy
+// Office batch API; it is NOT the route-specific CTB ETA URL.
+const NEARBY_ETA_TTL=55000;
+const NEARBY_ETA_CONCURRENCY=5;
+function nearbyStopKey(it){return (it.operator==='CTB'?'CTB':'KMB')+'|'+it.stop_id;}
+function nearbyStopETAURL(it){return it.operator==='CTB'?
+ 'https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/'+encodeURIComponent(it.stop_id):
+ 'https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/'+encodeURIComponent(it.stop_id);}
+function parseNearbyETA(it,json){
+ if(!Array.isArray(json?.data))throw Error('Invalid stop-level ETA response');
+ const map=new Map(),now=Date.now();
+ for(const x of json.data){
+  const route=clean(x.route),direction=clean(x.dir),at=Date.parse(x.eta||'');
+  if(!route||!['I','O'].includes(direction)||!Number.isFinite(at)||at<now-30000||at>now+10800000)continue;
+  // Only the requested native stop may count as ETA evidence.
+  if(x.stop&&clean(x.stop)!==it.stop_id)continue;
+  const key=route+'|'+direction;
+  if(!map.has(key))map.set(key,[]);
+  map.get(key).push({at,operator:it.operator,stop_id:it.stop_id});
+ }
+ for(const a of map.values())a.sort((x,y)=>x.at-y.at);
+ return map;
+}
+async function getNearbyStopETA(it,force=false){
+ const key=nearbyStopKey(it),previous=nearbyETAState.cache.get(key);
+ if(!force&&previous&&Date.now()-previous.time<NEARBY_ETA_TTL)return previous;
+ // Location change and tab switching must not double-request the same stop.
+ if(nearbyETAState.inFlight.has(key))return nearbyETAState.inFlight.get(key);
+ const task=(async()=>{
+  try{
+   const j=await requestJSON(nearbyStopETAURL(it),11000),routes=parseNearbyETA(it,j);
+   const entry={time:Date.now(),routes};nearbyETAState.cache.set(key,entry);return entry;
+  }catch(e){
+   const entry={time:Date.now(),routes:new Map(),error:e.message};nearbyETAState.cache.set(key,entry);return entry;
+  }
+ })();
+ nearbyETAState.inFlight.set(key,task);
+ try{return await task;}finally{if(nearbyETAState.inFlight.get(key)===task)nearbyETAState.inFlight.delete(key);}
+}
+function nearbyGroupETA(g){
+ let arrival=null,pending=false,failed=false;
+ const visited=new Set(),now=Date.now();
+ for(const it of g.items){
+  const key=nearbyStopKey(it);if(visited.has(key+'|'+it.route+'|'+it.direction))continue;
+  visited.add(key+'|'+it.route+'|'+it.direction);
+  const record=nearbyETAState.cache.get(key);
+  if(!record||now-record.time>NEARBY_ETA_TTL){pending=true;continue;}
+  if(record.error){failed=true;continue;}
+  const options=record.routes.get(it.route+'|'+it.direction)||[];
+  const next=options.find(x=>x.at>=now-30000);
+  if(next&&(!arrival||next.at<arrival.at)){
+   arrival={...next,stopName:state.lang==='tc'?(it.name_tc||it.name):(it.name_en||it.name)};
+  }
+ }
+ return {arrival,pending,failed:failed&&!pending&&!arrival};
+}
+function startNearbyETAScan(force=false){
+ ++nearbyETAState.generation;
+ const token=nearbyETAState.generation;
+ if(!state.position||!state.nearby.length){nearbyETAState.progress=null;return;}
+ const nearest=new Map();
+ for(const it of state.nearby){
+  const key=nearbyStopKey(it),dist=distance(state.position.lat,state.position.lng,it.lat,it.lng);
+  if(!nearest.has(key)||dist<nearest.get(key).distance)nearest.set(key,{it,distance:dist});
+ }
+ const all=[...nearest.values()].sort((a,b)=>a.distance-b.distance),remaining=all.filter(v=>{
+  const prior=nearbyETAState.cache.get(nearbyStopKey(v.it));return force||!prior||Date.now()-prior.time>=NEARBY_ETA_TTL;
+ });
+ const progress={token,total:all.length,checked:all.length-remaining.length,running:remaining.length>0};
+ nearbyETAState.progress=progress;
+ scheduleNearbyResults();
+ if(!remaining.length)return;
+ let cursor=0;
+ const worker=async()=>{
+  while(token===nearbyETAState.generation&&cursor<remaining.length){
+   const job=remaining[cursor++];await getNearbyStopETA(job.it,force);
+   if(token!==nearbyETAState.generation)return;
+   progress.checked++;scheduleNearbyResults();
+  }
+ };
+ void Promise.all(Array.from({length:Math.min(NEARBY_ETA_CONCURRENCY,remaining.length)},()=>worker())).then(()=>{
+  if(token===nearbyETAState.generation){progress.running=false;scheduleNearbyResults();}
+ });
+}
 function populateNearby(){if(!state.position||!state.catalogue.length)return;
  if(!goodPosition(state.position)){state.nearby=[];banner('You appear to be outside Hong Kong; Nearby needs a Hong Kong GPS position.');render();return;}
  const {lat,lng}=state.position,limit=state.radius,la=limit/110900,lo=limit/(110900*Math.cos(lat*Math.PI/180));
  state.nearby=state.catalogue.filter(x=>goodPosition(x)&&Math.abs(x.lat-lat)<=la&&Math.abs(x.lng-lng)<=lo&&distance(lat,lng,x.lat,x.lng)<=limit);
- banner('');render();
+ banner('');render();startNearbyETAScan();
 }
 function locate(){if(state.demo){banner('Switch to Live mode to use GPS.');return;}
  if(!navigator.geolocation){banner('GPS is not available. Open the HTTPS dashboard in Safari.');return;}
@@ -728,7 +850,7 @@ async function importCatalogue(file){try{const json=JSON.parse(await file.text()
 async function importFavourites(file){try{const json=JSON.parse(await file.text()),arr=Array.isArray(json)?json:Object.values(json);const previous=state.favourites;state.favourites=[...previous,...arr];restoreFavs();state.favourites=[...new Map(state.favourites.map(f=>[favID(f),f])).values()];persist('hkbus_favourites_v2',state.favourites);render();banner('Favourites imported.');}catch(e){banner('Import failed: '+e.message);}}
 let inputTimer;
 document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);if(state.query.trim()&&routeResults().length<=4&&routeResults().every(g=>g.route===clean(state.query))){const result=$('#routeResults');result?.scrollIntoView({block:'nearest',behavior:'smooth'});void ensurePhysicalRoute(clean(state.query));}},160);}});
-document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){state.radius=Number(e.target.value);state.nearby=[];state.position=null;render();locate();}
+document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){++nearbyETAState.generation;nearbyETAState.progress=null;state.radius=Number(e.target.value);state.nearby=[];state.position=null;render();locate();}
  if(e.target.id==='catalogueFile'){const f=e.target.files?.[0];if(f)importCatalogue(f);e.target.value='';}
  if(e.target.id==='favouritesFile'){const f=e.target.files?.[0];if(f)importFavourites(f);e.target.value='';}});
 document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav){setView(nav.dataset.view);return;}
@@ -750,13 +872,21 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='importCat')$('#catalogueFile').click();
  if(action==='importFav')$('#favouritesFile').click();
  if(action==='exportFav')download('hk-bus-favourites.json',state.favourites);
- if(action==='clearETAs'){state.etas.clear();banner('ETA cache cleared.');}
+ if(action==='clearETAs'){state.etas.clear();nearbyETAState.cache.clear();banner('ETA cache cleared.');if(state.view==='nearby')startNearbyETAScan(true);}
  if(action==='clearFav'&&confirm(state.lang==='tc'?UI_ZH['Remove all saved favourites on this browser?']:'Remove all saved favourites on this browser?')){state.favourites=[];persist('hkbus_favourites_v2',[]);banner('Favourites cleared.');render();}
 });
 persist('hkbus_demo',false); // Retire any saved demo preference from earlier versions.
-$('#refreshButton').addEventListener('click',()=>{state.etas.clear();state.routeStops.clear();state.routeOrientation.clear();state.routeOrientationPending.clear();persist(ROUTE_DIRECTION_STORAGE,{});state.groups=makeGroups(state.catalogue);banner('Caches refreshed.');render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));});
+$('#refreshButton').addEventListener('click',()=>{state.etas.clear();nearbyETAState.cache.clear();state.routeStops.clear();state.routeOrientation.clear();state.routeOrientationPending.clear();persist(ROUTE_DIRECTION_STORAGE,{});state.groups=makeGroups(state.catalogue);banner('Caches refreshed.');render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&state.position)startNearbyETAScan(true);});
 $('#closeModal').addEventListener('click',closeDialog);
 $('#modalScrim').addEventListener('click',e=>{if(e.target.id==='modalScrim')closeDialog();});
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
+// ETA feeds update roughly every minute. Re-check visible Nearby data without
+// polling in other tabs or while Safari is in the background.
+setInterval(()=>{
+ if(state.view==='nearby'&&state.position&&state.nearby.length&&document.visibilityState==='visible')startNearbyETAScan();
+},60000);
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState==='visible'&&state.view==='nearby'&&state.position&&state.nearby.length)startNearbyETAScan();
+});
 const stopLinksReady=loadOfficialStopLinks();
 render();if(state.view==='nearby'&&!state.demo){state.locationRequested=true;locate();}loadCatalogue();
