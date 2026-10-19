@@ -1,77 +1,70 @@
-# HK Bus ETA — Dashboard v2.0
+# HK Bus ETA — Dashboard v3.1
 
-Native HTML/CSS/JavaScript Hong Kong bus arrival dashboard for GitHub Pages and Apple Shortcuts. English interface; Traditional Chinese bus stop and destination names when supplied by the data source.
+Native HTML/CSS/JavaScript Hong Kong bus arrival dashboard for GitHub Pages and Apple Shortcuts. English or Traditional Chinese interface (Settings → Interface language); stop and destination names come from the operators.
 
-## What v2 fixes
+Live: https://akimoto0811.github.io/Smart-Dashboard/bus-eta/
 
-- Search `102` returns route **102** only, grouped into its inbound and outbound directions. It does not match `102` hidden in a destination, stop name, or another route number.
-- Each route/direction appears once, with KMB/Citybus/Long Win badges for available operators.
-- Clicking a group obtains official operator **route-stop lists**, rather than trusting the third-party catalogue's route-stop mapping.
-- Boarding stops on the same physical location are combined when their coordinates are close, and the next arrivals from participating operators are merged and labelled.
-- An empty official ETA is displayed as "No ETA predicted"; HTTP/network errors are shown separately, not as zero arrivals.
-- Favourites persist locally, with backup import/export. Nearby routes are grouped the same way as Routes.
-- Relative HTML asset references include a v2 cache-buster to avoid the older JavaScript remaining cached in Safari.
+## Features
 
-## Deploy to your existing GitHub repository (akimoto0811/Smart-Dashboard)
+- **Nearby** lists routes around your GPS position, sorted by the next confirmed arrival, and re-checks every minute while visible. Changing the radius re-filters around your last position instead of asking for GPS again.
+- **Routes** searches by route number (exact match first) or stop name, with one entry per route and direction. Opening a route verifies its stops against the official operator lists and merges KMB/Citybus poles of the same joint-route stop.
+- **Favourites** shows the next arrival for every saved stop. Favourites persist in this browser, with JSON import/export in Settings.
+- Arrival minutes stay live: the open route list, the single-stop view and Favourites refresh every 30 seconds, and ETAs older than 45 seconds are re-requested.
+- An empty official ETA is shown as "No ETA predicted"; HTTP/network errors are shown separately, never as zero arrivals.
+- Home-screen icon and pinch-to-zoom are supported.
 
-**IMPORTANT:** Keep your existing `bus-eta/catalogue.json` online. It is your 14.18 MB, 73,694-record route-discovery catalogue and is **not** included in this zip. Rebuilding or reuploading it is not necessary for the fix.
+## Files
 
-1. Unzip this package on your Mac. It contains one `bus-eta` folder with seven code files: `index.html`, `app.js`, `styles.css`, `manifest.webmanifest`, `make_catalogue.py`, `build_launcher.py`, `README.md`.
-2. Open: https://github.com/akimoto0811/Smart-Dashboard/tree/main/bus-eta
-3. Click **Add file → Upload files** (inside the existing `bus-eta` folder).
-4. Open the *extracted* `bus-eta` folder in Finder, select **all seven files inside** the folder, and drag those files into GitHub. **Do not drag the parent `bus-eta` folder while already inside `/bus-eta/`**, as doing so could create `bus-eta/bus-eta/`.
-5. Confirm the upload list shows `app.js`, `index.html`, `styles.css` and the other files, all in the existing `/bus-eta/` path. Commit with message `Rebuild grouped HK Bus ETA dashboard v2`.
-6. Visit the [GitHub Actions page](https://github.com/akimoto0811/Smart-Dashboard/actions) and wait for **pages build and deployment → Success**.
-7. Open https://akimoto0811.github.io/Smart-Dashboard/bus-eta/ in Safari. Refresh. Select **Go live**, then **Routes**, search `102`, choose a direction, select your actual bus stop, then review ETAs.
+| Path | Purpose |
+|---|---|
+| `index.html`, `app.js`, `styles.css` | The app. Bump the `?v=` cache-buster in `index.html` when any of them change. |
+| `manifest.webmanifest`, `icons/` | Home-screen name and icons. |
+| `catalogue-compact.json` | Route/stop discovery catalogue (schema 4, ~1.5 MB). Built by `make_catalogue.py`. |
+| `stop-links.json` | Audited KMB ↔ Citybus stop pairs for joint routes. Generated offline from Transport Department joint-route stop anchors; the generator script is not in this repository, so keep this file as is. |
+| `make_catalogue.py` | Rebuilds `catalogue-compact.json`. |
+| `build_launcher.py` | Optional Mac Shortcut that opens the dashboard. |
 
-No server or API credentials are needed for this design; however, the public operator APIs must allow your browser's requests (CORS). If Safari reports a request/network error, this is a hosting limitation that would need a compatible relay or native Shortcut request—not fabricated times.
+The repo root `index.html` redirects https://akimoto0811.github.io/Smart-Dashboard/ to this app.
+
+## Rebuilding the catalogue
+
+```sh
+cd bus-eta
+python3 make_catalogue.py                        # download the latest hkbus data and rebuild
+python3 make_catalogue.py --from catalogue.json  # or convert an old schema 3 catalogue.json
+```
+
+Schema 4 stores each stop ID, stop location and destination once and refers to them by index, so it is about 12× smaller than the old one-row-per-stop `catalogue.json` (20 MB). A fresh download also records each stop's hkbus shared stop ID, which the app uses as extra evidence when merging KMB and Citybus poles; the converted file currently in the repo does not have those IDs yet, so rebuilding from the source adds them.
+
+The app caches the catalogue in IndexedDB and re-downloads it at most every 6 hours. Settings → Import catalogue JSON accepts either schema.
 
 ## API data architecture
 
-- Catalogue source: `data.hkbus.app/routeFareList.min.json` converted to operator-specific JSON. Used for **discovering** route numbers, directions, and approximate nearby routes only; may contain stale route-stop associations.
-- Citybus authoritative route-stop: `https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/{route}/{inbound|outbound}`
+- Catalogue source: `data.hkbus.app/routeFareList.min.json`. Used for **discovering** route numbers, directions and nearby routes only; it may contain stale route-stop associations.
+- Citybus route-stop: `https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/{route}/{inbound|outbound}`
 - Citybus stop detail: `https://rt.data.gov.hk/v2/transport/citybus/stop/{stop_id}`
 - Citybus ETA: `https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/{stop_id}/{route}`
-- KMB / Long Win authoritative route-stop: `https://data.etabus.gov.hk/v1/transport/kmb/route-stop/{route}/{inbound|outbound}/{service_type}`
+- Citybus stop-level ETA (Nearby): `https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/{stop_id}`
+- KMB / Long Win route-stop: `https://data.etabus.gov.hk/v1/transport/kmb/route-stop/{route}/{inbound|outbound}/{service_type}`
 - KMB / Long Win stop detail: `https://data.etabus.gov.hk/v1/transport/kmb/stop/{stop_id}`
 - KMB / Long Win ETA: `https://data.etabus.gov.hk/v1/transport/kmb/eta/{stop_id}/{route}/{service_type}`
+- KMB / Long Win stop-level ETA (Nearby): `https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/{stop_id}`
 
-Live ETAs are not estimates generated by the dashboard; they are operator ISO-8601 timestamps converted to minutes remaining. Operator responses can legitimately contain no ETA for a given stop and time. Arrival times and GPS features require testing on your iPhone.
+Live ETAs are operator ISO-8601 timestamps converted to minutes remaining; the dashboard never estimates them.
 
 ## Browser storage
 
-- `localStorage` stores Live/Demo mode and saved favourites (`hkbus_favourites_v2`), retaining compatibility with older single-operator favourite records.
-- IndexedDB caches the stop catalogue, which is also loaded directly from `catalogue.json` in this folder.
-- Official route-stop response cache lasts one hour per route/direction/operator/service type; ETA cache lasts 45 seconds; Refresh clears caches.
-- Favourite changes in Safari are **not automatically synchronized** with the separate native `.shortcut` favourites. Export/import JSON for transfer.
+- `localStorage`: favourites (`hkbus_favourites_v2`), language, start page, verified route directions (1 day) and stop names (14 days).
+- IndexedDB: the catalogue document (`catalogue_v5`).
+- Official route-stop lists are cached for one hour, ETAs for 45 seconds. The ↻ button clears these caches.
+- Safari favourites are not synchronised with the native `.shortcut`; use export/import to move them.
 
 ## Mac Shortcut launcher (optional)
 
-If you want a native Shortcut icon that opens the already-hosted dashboard, run on your Mac:
-
 ```sh
-cd /path/to/extracted/bus-eta
+cd bus-eta
 python3 build_launcher.py "https://akimoto0811.github.io/Smart-Dashboard/bus-eta/"
 shortcuts sign --mode anyone --input "HK Bus Dashboard.unsigned.shortcut" --output "HK Bus Dashboard.signed.shortcut"
 ```
 
-Open the signed file to import into Shortcuts. Mac signing and iPhone import are not testable from this development environment.
-
-## QA status
-
-**Locally passed in an isolated Chromium browser with simulated operator API responses:** exact route number matching, joint service grouping by direction, rejection of a known invalid Citybus route-stop (`102`/`001304`), validation of a correct Citybus stop (`001303`), simultaneous Citybus+KMB ETA display, favourites, grouped nearby routes, and no uncaught JavaScript exceptions.
-
-**Not yet verified on real iPhone/network:** cross-origin API access in your Safari, actual current ETA readings across operators, location permissions/accuracy, and larger route catalogues under live device conditions. Live site deployment must be verified after you commit the files.
-
-## Keep and replace summary
-
-| Path | Action |
-|---|---|
-| `bus-eta/app.js` | Replace (completely rewritten) |
-| `bus-eta/styles.css` | Replace |
-| `bus-eta/index.html` | Replace (v2 cache-buster) |
-| `bus-eta/README.md` | Replace |
-| `bus-eta/make_catalogue.py` | Replace (discovery-only disclaimer; no need to re-run) |
-| `bus-eta/build_launcher.py` | Replace with compatible launcher source (function unchanged) |
-| `bus-eta/manifest.webmanifest` | Replace with compatible manifest source (function unchanged) |
-| `bus-eta/catalogue.json` | **Keep original** (do not delete or replace) |
+Open the signed file to import it into Shortcuts.

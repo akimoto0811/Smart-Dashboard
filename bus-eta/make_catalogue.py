@@ -4,11 +4,18 @@
 The third-party data can contain stale/mismatched route-stop pairs. The web app
 verifies operator-specific route membership with official APIs at selection time.
 Do NOT use catalogue entries directly as authoritative ETA stop assignments.
+
+Output is the compact schema 4 file catalogue-compact.json: stop IDs, stop
+locations and destinations are stored once and referenced by index, which keeps
+the file about 12x smaller than the old one-object-per-row catalogue.json.
+
+  python3 make_catalogue.py                       # download source and rebuild
+  python3 make_catalogue.py --from catalogue.json # convert an old schema 3 file
 """
 import json, os, pathlib, sys, tempfile, urllib.request
 from datetime import datetime, timezone
 SOURCE_URLS=['https://data.hkbus.app/routeFareList.min.json','https://hkbus.github.io/hk-bus-crawling/routeFareList.min.json']
-OUTPUT=pathlib.Path(__file__).resolve().parent/'catalogue.json'
+OUTPUT=pathlib.Path(__file__).resolve().parent/'catalogue-compact.json'
 
 def fetch():
  errors=[]
@@ -55,11 +62,33 @@ def build(db):
      if op!='CTB' and not(len(stopid)==16 and all(c in '0123456789ABCDEF' for c in stopid)):continue
      key=(op,route,direction,stopid,service)
      entries[key]={'operator':op,'route':route,'direction':direction,'stop_id':stopid,'service_type':service,
-                   'name':stopname,'name_en':stopname_en,'destination':destination,'destination_en':destination_en,'lat':round(lat,6),'lng':round(lng,6)}
+                   'name':stopname,'name_en':stopname_en,'destination':destination,'destination_en':destination_en,'lat':round(lat,6),'lng':round(lng,6),
+                   'shared_stop_id':sharedid}
  return list(entries.values())
 
+def compact(entries):
+ """Schema 4: [op,route,dir,service,[stop_id_index,location_index,destination_index,...]] per variant."""
+ tables={'stop_ids':{},'locations':{},'destinations':{}}
+ def ref(table,key):
+  t=tables[table]
+  if key not in t:t[key]=len(t)
+  return t[key]
+ variants={}
+ for it in entries:
+  flat=variants.setdefault((it['operator'],it['route'],it['direction'],it['service_type']),[])
+  flat+=[ref('stop_ids',it['stop_id']),
+         ref('locations',(it['name'],it.get('name_en',''),it['lat'],it['lng'],it.get('shared_stop_id',''))),
+         ref('destinations',(it['destination'],it.get('destination_en','')))]
+ return {'stop_ids':list(tables['stop_ids']),'locations':[list(k) for k in tables['locations']],
+         'destinations':[list(k) for k in tables['destinations']],'variants':[[*k,v] for k,v in variants.items()]}
+
 def main():
- db=fetch();entries=build(db)
+ if len(sys.argv)==3 and sys.argv[1]=='--from':
+  old=json.loads(pathlib.Path(sys.argv[2]).read_text(encoding='utf8'))
+  entries=old['entries'];date=old.get('catalogue_date') or datetime.now(timezone.utc).strftime('%Y-%m-%d')
+  source=old.get('source','hkbus/hk-bus-crawling routeFareList.min.json')
+ else:
+  entries=build(fetch());date=datetime.now(timezone.utc).strftime('%Y-%m-%d');source='hkbus/hk-bus-crawling routeFareList.min.json'
  operators={x['operator'] for x in entries}
  print(f'Parsed {len(entries):,} route-stop records. Operators: {", ".join(sorted(operators))}')
  if len(entries)<1000 or not {'KMB','CTB'}.issubset(operators):raise RuntimeError('Incomplete catalogue: refusing to replace existing output.')
@@ -67,11 +96,11 @@ def main():
  english_dests=sum(bool(it.get('destination_en')) for it in entries)
  print(f'English names: {english_names:,} / {len(entries):,}; English destinations: {english_dests:,} / {len(entries):,}')
  if english_names<len(entries)*0.7 or english_dests<len(entries)*0.7:raise RuntimeError('Source is missing most English names; refusing to overwrite existing catalogue.')
- data={'schema_version':3,'catalogue_date':datetime.now(timezone.utc).strftime('%Y-%m-%d'),'source':'hkbus/hk-bus-crawling routeFareList.min.json','entries':entries}
+ data={'schema_version':4,'catalogue_date':date,'source':source,'records':len(entries),**compact(entries)}
  fd,tmp=tempfile.mkstemp(suffix='.json',prefix='.tmp-hkbus-',dir=OUTPUT.parent)
  try:
   with os.fdopen(fd,'w',encoding='utf8') as f:json.dump(data,f,ensure_ascii=False,separators=(',',':'))
-  os.replace(tmp,OUTPUT)
+  os.replace(tmp,OUTPUT);os.chmod(OUTPUT,0o644)
  finally:
   if os.path.exists(tmp):os.unlink(tmp)
  print('Saved:',OUTPUT,'size:',round(OUTPUT.stat().st_size/1e6,2),'MB')
