@@ -92,7 +92,7 @@ button,input,select {touch-action:manipulation}
 .nearby-route{gap:9px}
 .nearby-route .group-info strong{font-size:14px;line-height:1.27}
 .nearby-route .group-meta{font-size:11px}
-.nearby-route .nearby-boarding{max-width:100%;color:var(--muted);font-size:10px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nearby-route .group-meta{display:flex;max-width:100%;white-space:nowrap}.nearby-route .meta-stop{min-width:0;overflow:hidden;text-overflow:ellipsis}.nearby-route .meta-distance{white-space:pre}
 .nearby-route .group-info{gap:4px}
 .nearby-route-eta{flex:0 0 75px;min-width:75px;text-align:right;font-variant-numeric:tabular-nums}
 .nearby-route-eta strong{display:block;font-weight:800;color:var(--mint);font-size:15px;white-space:nowrap}
