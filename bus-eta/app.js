@@ -305,36 +305,42 @@ function nearby(){
  const scan=nearbyETAState.progress;
  const subtitle=state.demo?'Illustration only':!state.position?'Checking your location… Tap Locate me if needed':
    `${fmt(live.length)} ${state.lang==='tc'?'組附近巴士站有預計到站時間':'nearby services with upcoming arrivals'}`;
- const progress=state.position&&scan?.running&&scan.total?`<p class="small-note nearby-scan-status" aria-live="polite">${state.lang==='tc'?'已查詢':'Checked'} ${fmt(scan.checked)} / ${fmt(scan.total)} ${state.lang==='tc'?'個巴士站的即時到站資料':'stop locations for live arrivals'}${scan.running?'…':''}</p>`:'';
- const inventoryWarning=nearbyETAState.officialKMBError?`<p class="small-note nearby-warning">${state.lang==='tc'?'未能取得九巴完整巴士站資料，現使用已儲存站點。':'Official KMB stop inventory unavailable; using cached catalogue stops.'}</p>`:'';
+ const progress=state.position&&scan?.running&&scan.total?`<div class="nearby-progress" role="progressbar" aria-label="${state.lang==='tc'?'正在查詢附近巴士站':'Checking nearby stops'}" aria-valuemin="0" aria-valuemax="${scan.total}" aria-valuenow="${scan.checked}"><span style="width:${Math.max(4,Math.round(scan.checked/scan.total*100))}%"></span></div>`:'';
+ const inventoryWarning=nearbyETAState.officialKMBError?`<button class="nearby-warn" data-action="nearbyWarning" aria-label="${state.lang==='tc'?'資料提示':'Data notice'}">⚠</button>`:'';
  const active=live.length?nearbyStopSectionsHTML(live):'';
  const other=remaining.length?`<div class="nearby-list-label nearby-secondary-label">${scan?.running||nearbyETAState.officialKMBPending?(state.lang==='tc'?'正在查詢其他巴士站':'Checking other stops'):(state.lang==='tc'?'其他附近路線 · 暫無預計到站時間':'Other nearby routes · No ETA confirmed at nearby stops')}</div>${groupRows(remaining.slice(0,75),'nearby')}`:'';
  const pending=!live.length&&(scan?.running||nearbyETAState.officialKMBPending)?`<div class="nearby-wait">${state.lang==='tc'?'正在查詢附近各巴士公司的即時到站資料…':'Checking official ETAs for nearby boarding stops…'}</div>`:'';
  const rows=active+pending+other||(state.position?`<div class="empty">${state.lang==='tc'?'此範圍內沒有已確認的巴士站。':'No verified nearby stops found in this radius.'}</div>`:'<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>');
- return `<div class="nearby-toolbar"><select class="select" id="radiusSelect" aria-label="Search radius">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select>${state.position?`<span class="nearby-gps">GPS ±${Math.round(state.position.accuracy)}m</span>`:''}<button class="nearby-locate" data-action="locate"><span aria-hidden="true">⌖</span> <span>Locate me</span></button></div><div class="section-sub nearby-summary">${esc(subtitle)}</div>${progress}${inventoryWarning}<div class="card no-gap nearby-results">${rows}</div>`;
+ return `<div class="nearby-toolbar"><select class="select" id="radiusSelect" aria-label="Search radius">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select>${state.position?`<span class="nearby-gps">GPS ±${Math.round(state.position.accuracy)}m</span>`:''}${inventoryWarning}<button class="nearby-locate" data-action="locate"><span aria-hidden="true">⌖</span> <span>Locate me</span></button></div>${progress}<div class="section-sub nearby-summary">${esc(subtitle)}</div><div class="card no-gap nearby-results">${rows}</div>`;
 }
-const minutesLabel=at=>{const m=etaMinutes(at);return m===0?(state.lang==='tc'?'即將到站':'Due'):m+(state.lang==='tc'?' 分鐘':' min');};
+const minutesLabel=at=>{const m=etaMinutes(at);return m<=1?(state.lang==='tc'?'即將抵達':'Arriving'):m+(state.lang==='tc'?' 分鐘':' min');};
+// Short operator codes shown inside the route tile.
+const operatorCodes=ops=>ops.map(x=>state.lang==='tc'?({KMB:'九巴',LWB:'龍運',CTB:'城巴'}[x]||x):({KMB:'KMB',LWB:'LW',CTB:'CTB'}[x]||x)).join('·');
 function nearbyLiveCardHTML(c,i){
  const destination=state.lang==='tc'?(c.destination_tc||c.destination_en):(c.destination_en||c.destination_tc);
  const later=(c.times||[]).slice(1).map(x=>etaMinutes(x.at));
  return `<button class="route-group nearby-route nearby-live-card" data-action="openNearbyETA" data-index="${i}">
- <span class="arrival-bus">${esc(c.route)}</span><span class="group-info"><strong>${destination?`${state.lang==='tc'?'往':'To'} ${esc(destination)}`:esc(c.route)}</strong>${operatorChips(c.operators)}</span>
- <span class="nearby-route-eta has-eta"><strong>${minutesLabel(c.at)}</strong><small>${later.length?esc(later.join(' · '))+(state.lang==='tc'?' 分鐘':' min'):esc(names[c.next.operator]||c.next.operator)}</small></span><span class="group-arrow">›</span></button>`;
+ <span class="arrival-bus nearby-tile op-${esc(c.operators.join('-').toLowerCase())}">${esc(c.route)}<small>${esc(operatorCodes(c.operators))}</small></span><span class="group-info"><strong>${destination?`${state.lang==='tc'?'往':'To'} ${esc(destination)}`:esc(c.route)}</strong></span>
+ <span class="nearby-route-eta has-eta${etaMinutes(c.at)<=1?' arriving':''}"><strong>${minutesLabel(c.at)}</strong><small>${later.length?esc(later.join(' · '))+(state.lang==='tc'?' 分鐘':' min'):esc(names[c.next.operator]||c.next.operator)}</small></span><span class="group-arrow">›</span></button>`;
 }
 // One heading per boarding stop (its name and distance), then its routes by
 // next arrival. Stops are ordered by distance, nearest first.
+const NEARBY_STOP_ROWS=4;
 function nearbyStopSectionsHTML(cards){
+ nearbyETAState.openStops??=new Set();
  const sections=new Map();
  cards.forEach((c,i)=>{
   const name=(state.lang==='tc'?(c.name_tc||c.name_en):(c.name_en||c.name_tc))||'Bus stop';
   const key=clean(name).replace(/[^A-Z0-9\u3400-\u9FFF]/g,'');
-  if(!sections.has(key))sections.set(key,{name,near:c.distance,far:c.distanceMax,rows:[]});
+  if(!sections.has(key))sections.set(key,{key,name,near:c.distance,far:c.distanceMax,rows:[]});
   const sec=sections.get(key);sec.near=Math.min(sec.near,c.distance);sec.far=Math.max(sec.far,c.distanceMax);sec.rows.push([c,i]);
  });
  return [...sections.values()].sort((a,b)=>a.near-b.near).map(sec=>{
   const range=`${fmt(sec.near)}${sec.far-sec.near>=15?'–'+fmt(sec.far):''} ${state.lang==='tc'?'米':'m'}`;
+  const rows=sec.rows.sort((a,b)=>a[0].at-b[0].at),open=nearbyETAState.openStops.has(sec.key),shown=open?rows:rows.slice(0,NEARBY_STOP_ROWS),hidden=rows.length-shown.length;
   return `<div class="nearby-stop-heading"><span class="nearby-stop-name">${esc(sec.name)}</span><span class="nearby-stop-distance">${range}</span></div>`+
-   sec.rows.sort((a,b)=>a[0].at-b[0].at).map(([c,i])=>nearbyLiveCardHTML(c,i)).join('');
+   shown.map(([c,i])=>nearbyLiveCardHTML(c,i)).join('')+
+   (hidden>0?`<button class="nearby-more" data-action="showStopRoutes" data-key="${esc(sec.key)}">${state.lang==='tc'?`顯示其餘 ${hidden} 條路線`:`Show ${hidden} more`}</button>`:'');
  }).join('');
 }
 function settings(){return `${line('Preferences','Choose your language and start page')}
@@ -344,8 +350,8 @@ function settings(){return `${line('Preferences','Choose your language and start
  <details class="card diagnostics-card"><summary>Diagnostics &amp; data</summary>
  <div class="diag-section"><div class="card-title">Diagnostics</div><p class="small-note">Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.</p><div class="buttons"><button class="ghost-button" data-action="clearETAs">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div> <div class="diag-section"><div class="card-title">Joint-route stop mapping</div><p class="small-note">${state.stopLinkStatus.loaded?(state.lang==='tc'?`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} 條聯營路線 · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} 組跨公司巴士站配對 · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} 條未能確認`:`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} joint routes · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} operator stop pairs · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} unresolved`):(state.lang==='tc'?'尚未載入配對資料 — 使用保守配對模式 (':'Not loaded — using conservative matching (')+esc(state.stopLinkStatus.error||'Check stop-links.json')+')'}</p></div>
  <div class="diag-section"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:16px">${esc(state.catalogueDate||'Not loaded')}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:16px">${esc(hkTime())}</div></div></div><p class="small-note">Stop data is used for discovery. Official operator lists verify boarding stops.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div></details>`;}
-function render(){const titles={favourites:['Favourites','Your frequently used journeys'],nearby:['Nearby Stops','Services around your location'],browse:['Find a Route','One entry per route and direction'],settings:['Settings','Catalogue, data and permissions']};
- const [title,desc]=titles[state.view];$('#pageTitle').textContent=title;$('#pageCaption').textContent=desc;
+function render(){const titles={favourites:['Favourites','Your frequently used journeys'],nearby:['Nearby Stops',''],browse:['Find a Route','One entry per route and direction'],settings:['Settings','Catalogue, data and permissions']};
+ const [title,desc]=titles[state.view];$('#pageTitle').textContent=title;$('#pageCaption').textContent=desc;$('#pageCaption').classList.toggle('hidden',!desc);
  $('#todayLabel').textContent='HONG KONG · '+hkDate().toUpperCase()+' · '+hkTime();
  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.toggle('selected',el.dataset.view===state.view));
  $('#mainContent').innerHTML=({favourites,nearby,browse,settings}[state.view]||nearby)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));localizeDocument();if(state.view==='favourites')refreshFavouriteETAs();}
@@ -1085,6 +1091,8 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='setLanguage'){state.lang=el.dataset.value==='tc'?'tc':'en';persist('hkbus_lang',state.lang);render();}
  if(action==='setStartPage'){const next=el.dataset.value;if(START_PAGES.includes(next)){state.startPage=next;persist('hkbus_start_page',next);render();}}
  if(action==='openGroup')openGroup(el.dataset.group);
+ if(action==='showStopRoutes'){nearbyETAState.openStops.add(el.dataset.key);render();}
+ if(action==='nearbyWarning'){const msg=state.lang==='tc'?'未能取得九巴完整巴士站資料，現使用已儲存站點。':'Official KMB stop inventory unavailable; using cached catalogue stops.';banner(state.notice===msg?'':msg);}
  if(action==='openNearbyETA'){const c=nearbyETAState.liveCards[Number(el.dataset.index)];if(c)void openGroup('',c);} 
  if(action==='openFavourite')openFavourite(Number(el.dataset.index));
  if(action==='expandStop'){const index=Number(el.dataset.index),s=state.verified[index];if(s){state.expandedStopKey=state.expandedStopKey===stopKey(s)?null:stopKey(s);drawStopPicker(state.dialogToken);if(state.expandedStopKey)void updateRowETA(index,state.dialogToken);}}
