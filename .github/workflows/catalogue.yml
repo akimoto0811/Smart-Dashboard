@@ -1,0 +1,37 @@
+name: Rebuild bus catalogue
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 20 * * 0'  # Mondays 04:00 Hong Kong time
+  pull_request:
+    paths:
+      - bus-eta/make_catalogue.py
+      - bus-eta/check_catalogue.py
+      - .github/workflows/catalogue.yml
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build catalogue-compact.json
+        run: python3 bus-eta/make_catalogue.py
+      - name: Check KMB stop IDs against the official route-stop list
+        run: python3 bus-eta/check_catalogue.py
+      - name: Commit the new catalogue
+        run: |
+          if git diff --quiet -- bus-eta/catalogue-compact.json; then echo "Catalogue unchanged"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bus-eta/catalogue-compact.json
+          git commit -m "Rebuild bus catalogue"
+          git push

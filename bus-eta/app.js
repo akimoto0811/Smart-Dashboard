@@ -1,5 +1,5 @@
 'use strict';
-/* HK Bus ETA 3.2. Route-discovery catalogue != authoritative operator route-stop list. */
+/* HK Bus ETA 3.3. Route-discovery catalogue != authoritative operator route-stop list. */
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const storage = (key, fallback) => {try {return JSON.parse(localStorage.getItem(key)) ?? fallback;} catch {return fallback;}};
@@ -177,9 +177,22 @@ const localizedStop = x => state.lang==='en'?(x.name_en||(/[^\u0000-\u007F]/.tes
 const localizedDestination = x => state.lang==='en'?(x.destination_en||x.destination||'Destination'):(x.destination_tc||x.destination||'目的地');
 function enrichedRecord(input,extra){return {...input,...extra,name_en:extra.name_en||input.name_en||'',name_tc:extra.name_tc||input.name_tc||input.name||''};}
 function uniqueCatalogue(rows){const map=new Map();for(const raw of rows){const it=normalize(raw);if(it)map.set(itemID(it),it);}return [...map.values()];}
-function normalizeCatalogue(json){if(Array.isArray(json.entries))return uniqueCatalogue(json.entries);
+// Schema 4 (catalogue-compact.json) stores stop IDs, locations and destinations
+// once; each variant lists [stop_id, location, destination] index triples.
+function expandCompactCatalogue(json){
+ const rows=[];
+ for(const [operator,route,direction,service_type,flat] of json.variants){
+  for(let i=0;i+2<flat.length;i+=3){
+   const [name,name_en,lat,lng,shared_stop_id]=json.locations[flat[i+1]]||[],[destination,destination_en]=json.destinations[flat[i+2]]||[];
+   rows.push({operator,route,direction,service_type,stop_id:json.stop_ids[flat[i]],name,name_en,lat,lng,shared_stop_id,destination,destination_en});
+  }
+ }
+ return rows;
+}
+function normalizeCatalogue(json){if(json.schema_version===4&&Array.isArray(json.variants))return uniqueCatalogue(expandCompactCatalogue(json));
+ if(Array.isArray(json.entries))return uniqueCatalogue(json.entries);
  if(json.routes&&json.cells){const coords=new Map();for(const [cell,labels] of Object.entries(json.cells)){const [a,b]=cell.split('_').map(Number);for(const label of labels||[])if(!coords.has(label))coords.set(label,[(a+.5)/100,(b+.5)/100]);}return uniqueCatalogue(Object.entries(json.routes).map(([key,it])=>({...it,name:key.split(' · ').at(-1)||'Stop',lat:coords.get(key)?.[0],lng:coords.get(key)?.[1]})));}
- throw Error('Unsupported catalogue format. Generate catalogue.json using make_catalogue.py');}
+ throw Error('Unsupported catalogue format. Generate catalogue-compact.json using make_catalogue.py');}
 // Public operators do not consistently use O/I for the same physical journey.
 // For joint routes, never merge opposite operator directions without verification.
 function physicalDirection(it, routeOps){
@@ -255,7 +268,22 @@ function groupRows(groups,mode='normal'){return groups.map((g,i)=>{
  return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}">
  <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(mode==='nearby'?boardingName:localizedDestination(g))}</strong><span class="group-meta">${mode==='nearby'?destination+nearest:(g.direction==='O'?'Outbound':'Inbound')}</span>${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
  }).join('');}
-function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedDestination(f))}</strong><span class="group-meta">${esc(localizedStop(f))} · ${f.direction==='O'?'Outbound':'Inbound'}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span><span class="group-arrow">›</span></button>`).join('');}
+function favouriteETAMarkup(f,i){
+ const result=state.demo?null:combinedETAs(f),first=result?.arr[0];
+ const kind=first?'has-eta':!result?'checking-eta':'no-eta';
+ const body=first?`<strong>${etaMinutes(first.at)===0?(state.lang==='tc'?'即將到站':'Due'):etaMinutes(first.at)+(state.lang==='tc'?' 分鐘':' min')}</strong><small>${esc(names[first.operator]||first.operator)}</small>`:
+  `<small>${!result?'Checking ETA…':result.errors.length?'ETA unavailable':'No upcoming ETA'}</small>`;
+ return `<span class="nearby-route-eta ${kind}" data-fav-eta="${i}">${state.demo?'':body}</span>`;
+}
+// Favourites show each saved stop's next arrival without opening it.
+function refreshFavouriteETAs(force=false){
+ if(state.view!=='favourites'||state.demo)return;
+ state.favourites.forEach((f,i)=>{void withEtaSlot(()=>Promise.all(f.variants.map(v=>getETA(v,force)))).then(()=>{
+  if(state.view!=='favourites'||state.favourites[i]!==f)return;
+  const el=document.querySelector(`[data-fav-eta="${i}"]`);if(el)el.outerHTML=favouriteETAMarkup(f,i);
+ });});
+}
+function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedDestination(f))}</strong><span class="group-meta">${esc(localizedStop(f))} · ${f.direction==='O'?'Outbound':'Inbound'}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span>${favouriteETAMarkup(f,i)}<span class="group-arrow">›</span></button>`).join('');}
 function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Your chosen route, direction and boarding stop')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
 function browse(){const q=state.query.trim(), groups=q?routeResults():[], exact=q&&groups.length>0&&groups.every(g=>g.route===clean(q));
  return `<div class="card search-card"><label class="card-title" for="routeSearch">Route number or stop name</label><input id="routeSearch" class="field" autocomplete="off" enterkeyhint="search" placeholder="e.g. 102 or Central" value="${esc(state.query)}"/>${q&&!exact?'<p class="small-note search-hint">Showing matching routes and directions.</p>':''}</div><div class="operator-row route-filters">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div><section id="routeResults" class="route-results">${q?`${line('Routes and directions',`${fmt(groups.length)} grouped result${groups.length===1?'':'s'}`)}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,100)):'<div class="empty">No matching routes. Try another number or stop name.</div>'}</div>${groups.length>100?'<p class="small-note">Showing the first 100 results; refine your search.</p>':''}`:'<div class="search-empty">Enter a route number to find its direction and verified stops.</div>'}</section>`;}
@@ -305,7 +333,7 @@ function render(){const titles={favourites:['Favourites','Your frequently used j
  const [title,desc]=titles[state.view];$('#pageTitle').textContent=title;$('#pageCaption').textContent=desc;
  $('#todayLabel').textContent='HONG KONG · '+hkDate().toUpperCase();$('#modeBadge').textContent='LIVE MODE';$('#modeBadge').classList.remove('demo');$('#syncLabel').textContent='HK time '+hkTime();
  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.toggle('selected',el.dataset.view===state.view));
- $('#mainContent').innerHTML=({favourites,nearby,browse,settings}[state.view]||nearby)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));localizeDocument();}
+ $('#mainContent').innerHTML=({favourites,nearby,browse,settings}[state.view]||nearby)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));localizeDocument();if(state.view==='favourites')refreshFavouriteETAs();}
 function refreshNearbyResults(){
  if(state.view!=='nearby')return;
  const main=$('#mainContent');if(!main)return;
@@ -781,7 +809,13 @@ async function updateRowETA(index,token,force=false){const s=state.verified[inde
 }
 
 function etaURL(it){return it.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}/${encodeURIComponent(it.service_type||'1')}`;}
+const etaPending=new Map();
 async function getETA(it,force=false){const key=itemID(it),old=state.etas.get(key);if(!force&&old&&Date.now()-old.time<45000)return old;
+ // Favourites, stop rows and the timer can ask for the same stop at once.
+ if(!force&&etaPending.has(key))return etaPending.get(key);
+ const task=fetchETA(it,key);etaPending.set(key,task);
+ try{return await task;}finally{if(etaPending.get(key)===task)etaPending.delete(key);}}
+async function fetchETA(it,key){
  try{const json=await requestJSON(etaURL(it),14000);if(!Array.isArray(json.data))throw Error('Invalid ETA JSON');
  const now=Date.now();const arr=json.data.filter(x=>clean(x.route)===it.route && (!x.dir||x.dir===it.direction) && (!x.stop||clean(x.stop)===it.stop_id) && x.eta)
  .map(x=>({at:Date.parse(x.eta),operator:it.operator,remark:String((state.lang==='en'?x.rmk_en:x.rmk_tc)||x.rmk_en||x.rmk_tc||'')})).filter(x=>Number.isFinite(x.at)&&x.at>=now-30000&&x.at<=now+10800000).sort((a,b)=>a.at-b.at);
@@ -1010,16 +1044,19 @@ async function indexedGet(key){try{const db=await new Promise((yes,no)=>{const r
 async function indexedPut(key,value){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
  await new Promise((yes,no)=>{const tx=db.transaction('data','readwrite');tx.objectStore('data').put(value,key);tx.oncomplete=()=>{db.close();yes();};tx.onerror=()=>no(tx.error);});}catch{/* Site catalogue still works this session. */}}
 function applyCatalogue(entries,date){state.catalogue=entries;state.groups=makeGroups(entries);state.catalogueDate=date||'Unknown';render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&!state.demo){if(state.position)populateNearby();else if(!state.locationRequested){state.locationRequested=true;locate();}}}
-async function loadCatalogue(){const saved=await indexedGet('catalogue_v4');if(saved&&Array.isArray(saved.entries)){applyCatalogue(saved.entries,saved.date);}
- // Avoid fetching/parsing the full 14 MB catalogue on every launch.
+// The raw source document is cached (the compact file is ~1.5 MB), not the
+// expanded rows, so IndexedDB reads and writes stay cheap.
+const CATALOGUE_URL='./catalogue-compact.json',CATALOGUE_STORE='catalogue_v5';
+async function loadCatalogue(){const saved=await indexedGet(CATALOGUE_STORE);
+ if(saved?.doc){try{applyCatalogue(normalizeCatalogue(saved.doc),saved.doc.catalogue_date||saved.date);}catch{}}
  if(saved?.fetchedAt&&Date.now()-saved.fetchedAt<6*3600000)return;
- try{const res=await fetch('./catalogue.json',{cache:'default'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut('catalogue_v4',{entries,date:state.catalogueDate,fetchedAt:Date.now()});}
- catch(e){if(!state.catalogue.length)banner('Could not load catalogue.json: '+e.message+'. Import the JSON file in Settings.');}}
-async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut('catalogue_v4',{entries,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
+ try{const res=await fetch(CATALOGUE_URL,{cache:'default'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut(CATALOGUE_STORE,{doc:json,fetchedAt:Date.now()});}
+ catch(e){if(!state.catalogue.length)banner('Could not load catalogue-compact.json: '+e.message+'. Import the JSON file in Settings.');}}
+async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut(CATALOGUE_STORE,{doc:json,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
 async function importFavourites(file){try{const json=JSON.parse(await file.text()),arr=Array.isArray(json)?json:Object.values(json);const previous=state.favourites;state.favourites=[...previous,...arr];restoreFavs();state.favourites=[...new Map(state.favourites.map(f=>[favID(f),f])).values()];persist('hkbus_favourites_v2',state.favourites);render();banner('Favourites imported.');}catch(e){banner('Import failed: '+e.message);}}
 let inputTimer;
 document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);if(state.query.trim()&&routeResults().length<=4&&routeResults().every(g=>g.route===clean(state.query))){const result=$('#routeResults');result?.scrollIntoView({block:'nearest',behavior:'smooth'});void ensurePhysicalRoute(clean(state.query));}},160);}});
-document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){++nearbyETAState.generation;nearbyETAState.progress=null;state.radius=Number(e.target.value);state.nearby=[];state.position=null;render();locate();}
+document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){++nearbyETAState.generation;nearbyETAState.progress=null;state.radius=Number(e.target.value);if(state.position)populateNearby();else{state.nearby=[];render();locate();}}
  if(e.target.id==='catalogueFile'){const f=e.target.files?.[0];if(f)importCatalogue(f);e.target.value='';}
  if(e.target.id==='favouritesFile'){const f=e.target.files?.[0];if(f)importFavourites(f);e.target.value='';}});
 document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav){setView(nav.dataset.view);return;}
@@ -1061,8 +1098,29 @@ window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
 setInterval(()=>{
  if(state.view==='nearby'&&state.position&&state.nearby.length&&document.visibilityState==='visible')startNearbyETAScan();
 },60000);
+// Keep minutes current in the open route/stop dialog and on Favourites. ETAs
+// older than the 45 s cache are re-requested; otherwise only the labels redraw.
+async function refreshStopView(){const s=state.currentStop,token=state.dialogToken;
+ const result=await Promise.all(s.variants.map(x=>getETA(x)));
+ if(token!==state.dialogToken||state.currentStop!==s)return;
+ const modal=$('#modalScrim .modal'),top=modal?.scrollTop||0;drawETA(s,result,token);if(modal)modal.scrollTop=top;}
+function refreshVisibleStopRows(){
+ const modal=$('#modalScrim .modal');if(!modal)return;const box=modal.getBoundingClientRect();
+ for(const row of document.querySelectorAll('#modalBody [data-stop-index]')){
+  const r=row.getBoundingClientRect();if(r.bottom<box.top-70||r.top>box.bottom+70)continue;
+  void updateRowETA(Number(row.dataset.stopIndex),state.dialogToken);
+ }
+}
+setInterval(()=>{
+ if(document.visibilityState!=='visible'||state.demo)return;
+ const modalOpen=!$('#modalScrim').classList.contains('hidden');
+ if(modalOpen&&state.currentStop)void refreshStopView();
+ else if(modalOpen&&state.verified.length)refreshVisibleStopRows();
+ else if(state.view==='favourites')refreshFavouriteETAs();
+},30000);
 document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='visible'&&state.view==='nearby'&&state.position&&state.nearby.length)startNearbyETAScan();
+ if(document.visibilityState==='visible'&&state.view==='favourites')refreshFavouriteETAs();
 });
 const stopLinksReady=loadOfficialStopLinks();
 render();if(state.view==='nearby'&&!state.demo){state.locationRequested=true;locate();}loadCatalogue();
