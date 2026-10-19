@@ -1,4 +1,4 @@
-# HK Bus ETA — Dashboard v3.1
+# HK Bus ETA — Dashboard v3.4
 
 Native HTML/CSS/JavaScript Hong Kong bus arrival dashboard for GitHub Pages and Apple Shortcuts. English or Traditional Chinese interface (Settings → Interface language); stop and destination names come from the operators.
 
@@ -6,7 +6,7 @@ Live: https://akimoto0811.github.io/Smart-Dashboard/bus-eta/
 
 ## Features
 
-- **Nearby** lists routes around your GPS position, sorted by the next confirmed arrival, and re-checks every minute while visible. Changing the radius re-filters around your last position instead of asking for GPS again.
+- **Nearby** groups routes by stop around your GPS position, showing each route's destination and next three arrivals, and re-checks every minute while visible. Changing the radius re-filters around your last position instead of asking for GPS again.
 - **Routes** searches by route number (exact match first) or stop name, with one entry per route and direction. Opening a route verifies its stops against the official operator lists and merges KMB/Citybus poles of the same joint-route stop.
 - **Favourites** shows the next arrival for every saved stop. Favourites persist in this browser, with JSON import/export in Settings.
 - Arrival minutes stay live: the open route list, the single-stop view and Favourites refresh every 30 seconds, and ETAs older than 45 seconds are re-requested.
