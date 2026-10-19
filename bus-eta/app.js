@@ -23,7 +23,8 @@ const demoStops = [
 ];
 const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
-const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null};
+const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null,
+ officialKMB:[],officialKMBLoadedAt:0,officialKMBPending:null,officialKMBError:null,scanStops:[],liveCards:[]};
 const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
 // UI translations only. Route numbers/IDs and stored JSON keys are never translated.
 const UI_ZH = {
@@ -176,20 +177,7 @@ const localizedStop = x => state.lang==='en'?(x.name_en||(/[^\u0000-\u007F]/.tes
 const localizedDestination = x => state.lang==='en'?(x.destination_en||x.destination||'Destination'):(x.destination_tc||x.destination||'目的地');
 function enrichedRecord(input,extra){return {...input,...extra,name_en:extra.name_en||input.name_en||'',name_tc:extra.name_tc||input.name_tc||input.name||''};}
 function uniqueCatalogue(rows){const map=new Map();for(const raw of rows){const it=normalize(raw);if(it)map.set(itemID(it),it);}return [...map.values()];}
-// Schema 4 (catalogue-compact.json) stores stop IDs, locations and destinations
-// once; each variant lists [stop_id, location, destination] index triples.
-function expandCompactCatalogue(json){
- const rows=[];
- for(const [operator,route,direction,service_type,flat] of json.variants){
-  for(let i=0;i+2<flat.length;i+=3){
-   const [name,name_en,lat,lng,shared_stop_id]=json.locations[flat[i+1]]||[],[destination,destination_en]=json.destinations[flat[i+2]]||[];
-   rows.push({operator,route,direction,service_type,stop_id:json.stop_ids[flat[i]],name,name_en,lat,lng,shared_stop_id,destination,destination_en});
-  }
- }
- return rows;
-}
-function normalizeCatalogue(json){if(json.schema_version===4&&Array.isArray(json.variants))return uniqueCatalogue(expandCompactCatalogue(json));
- if(Array.isArray(json.entries))return uniqueCatalogue(json.entries);
+function normalizeCatalogue(json){if(Array.isArray(json.entries))return uniqueCatalogue(json.entries);
  if(json.routes&&json.cells){const coords=new Map();for(const [cell,labels] of Object.entries(json.cells)){const [a,b]=cell.split('_').map(Number);for(const label of labels||[])if(!coords.has(label))coords.set(label,[(a+.5)/100,(b+.5)/100]);}return uniqueCatalogue(Object.entries(json.routes).map(([key,it])=>({...it,name:key.split(' · ').at(-1)||'Stop',lat:coords.get(key)?.[0],lng:coords.get(key)?.[1]})));}
  throw Error('Unsupported catalogue format. Generate catalogue.json using make_catalogue.py');}
 // Public operators do not consistently use O/I for the same physical journey.
@@ -246,54 +234,65 @@ restoreFavs();
 const banner = msg => {state.notice=msg;const el=$('#notice');el.textContent=msg;el.classList.toggle('hidden',!msg);};
 const line = (title,desc) => `<div class="section-title">${esc(title)}</div>${desc?`<div class="section-sub">${esc(desc)}</div>`:''}`;
 const operatorChips = ops => `<span class="operators">${ops.map(x=>`<span class="operator-chip">${esc(names[x]||x)}</span>`).join('')}</span>`;
+function nearbyBoardingItem(g){
+ const pos=state.position;
+ if(!g.items.length)return null;
+ return g.items.slice().sort((a,b)=>{
+  if(!pos)return 0;
+  return distance(pos.lat,pos.lng,a.lat,a.lng)-distance(pos.lat,pos.lng,b.lat,b.lng);
+ })[0];
+}
 function groupRows(groups,mode='normal'){return groups.map((g,i)=>{
  const n=mode==='nearby'?nearbyGroupETA(g):null;
  const first=n?.arrival;
+ const boarding=mode==='nearby'?nearbyBoardingItem(g):null;
+ const boardingName=first?.stopName|| (boarding?localizedStop(boarding):'Bus stop');
  const arrival=mode==='nearby'?`<span class="nearby-route-eta ${first?'has-eta':n?.pending?'checking-eta':'no-eta'}">${first?
    `<strong>${etaMinutes(first.at)===0?(state.lang==='tc'?'即將到站':'Due'):etaMinutes(first.at)+(state.lang==='tc'?' 分鐘':' min')}</strong><small>${esc(names[first.operator]||first.operator)}</small>`:
    `<small>${n?.pending?'Checking ETA…':n?.failed?'ETA unavailable':'No upcoming ETA'}</small>`}</span>`:'';
- // Nearby rows name the boarding stop whose ETA they show, not the direction.
- const stopDistance=n?.stop&&state.position&&goodPosition(n.stop)?distance(state.position.lat,state.position.lng,n.stop.lat,n.stop.lng):null;
- const meta=mode==='nearby'&&n?.stop?`<span class="meta-stop">${esc(localizedStop(n.stop))}</span>`+(stopDistance!==null?`<span class="meta-distance"> · ${stopDistance} ${state.lang==='tc'?'米':'m'}</span>`:''):(g.direction==='O'?'Outbound':'Inbound');
- return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}"${n?.stop?` data-focus="${esc(n.stop.operator+'|'+n.stop.stop_id)}"`:''}>
- <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(localizedDestination(g))}</strong><span class="group-meta">${meta}</span>${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
+ const nearest=mode==='nearby'&&Number.isFinite(g.nearestDistance)?` · ${Math.round(g.nearestDistance)} ${state.lang==='tc'?'米':'m'}`:'';
+ const destination=mode==='nearby'?`${state.lang==='tc'?'往':'To'} ${esc(localizedDestination(g))}`:'';
+ return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}">
+ <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(mode==='nearby'?boardingName:localizedDestination(g))}</strong><span class="group-meta">${mode==='nearby'?destination+nearest:(g.direction==='O'?'Outbound':'Inbound')}</span>${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
  }).join('');}
-function favouriteETAMarkup(f,i){
- const result=state.demo?null:combinedETAs(f),first=result?.arr[0];
- const kind=first?'has-eta':!result?'checking-eta':'no-eta';
- const body=first?`<strong>${etaMinutes(first.at)===0?(state.lang==='tc'?'即將到站':'Due'):etaMinutes(first.at)+(state.lang==='tc'?' 分鐘':' min')}</strong><small>${esc(names[first.operator]||first.operator)}</small>`:
-  `<small>${!result?'Checking ETA…':result.errors.length?'ETA unavailable':'No upcoming ETA'}</small>`;
- return `<span class="nearby-route-eta ${kind}" data-fav-eta="${i}">${state.demo?'':body}</span>`;
-}
-// Favourites show each saved stop's next arrival without opening it.
-function refreshFavouriteETAs(force=false){
- if(state.view!=='favourites'||state.demo)return;
- state.favourites.forEach((f,i)=>{void withEtaSlot(()=>Promise.all(f.variants.map(v=>getETA(v,force)))).then(()=>{
-  if(state.view!=='favourites'||state.favourites[i]!==f)return;
-  const el=document.querySelector(`[data-fav-eta="${i}"]`);if(el)el.outerHTML=favouriteETAMarkup(f,i);
- });});
-}
-function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedDestination(f))}</strong><span class="group-meta">${esc(localizedStop(f))} · ${f.direction==='O'?'Outbound':'Inbound'}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span>${favouriteETAMarkup(f,i)}<span class="group-arrow">›</span></button>`).join('');}
+function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedDestination(f))}</strong><span class="group-meta">${esc(localizedStop(f))} · ${f.direction==='O'?'Outbound':'Inbound'}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span><span class="group-arrow">›</span></button>`).join('');}
 function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Your chosen route, direction and boarding stop')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
 function browse(){const q=state.query.trim(), groups=q?routeResults():[], exact=q&&groups.length>0&&groups.every(g=>g.route===clean(q));
  return `<div class="card search-card"><label class="card-title" for="routeSearch">Route number or stop name</label><input id="routeSearch" class="field" autocomplete="off" enterkeyhint="search" placeholder="e.g. 102 or Central" value="${esc(state.query)}"/>${q&&!exact?'<p class="small-note search-hint">Showing matching routes and directions.</p>':''}</div><div class="operator-row route-filters">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div><section id="routeResults" class="route-results">${q?`${line('Routes and directions',`${fmt(groups.length)} grouped result${groups.length===1?'':'s'}`)}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,100)):'<div class="empty">No matching routes. Try another number or stop name.</div>'}</div>${groups.length>100?'<p class="small-note">Showing the first 100 results; refine your search.</p>':''}`:'<div class="search-empty">Enter a route number to find its direction and verified stops.</div>'}</section>`;}
-function nearby(){const candidates=state.demo?demoStops.flatMap(f=>f.variants):state.nearby;
+function nearby(){
+ const candidates=state.demo?demoStops.flatMap(f=>f.variants):state.nearby;
  const groups=makeGroups(candidates);groups.forEach(g=>{g.nearestDistance=Math.min(...g.items.map(x=>state.position&&goodPosition(x)?distance(state.position.lat,state.position.lng,x.lat,x.lng):Infinity));});
  const classified=groups.map(g=>({...g,nearby:nearbyGroupETA(g)}));
- // Confirmed ETA beats proximity. Loading groups follow; confirmed absence and API errors last.
  classified.sort((a,b)=>{
   const rank=g=>g.nearby.arrival?0:g.nearby.pending?1:g.nearby.failed?3:2;
   return rank(a)-rank(b)||(a.nearby.arrival?.at||Infinity)-(b.nearby.arrival?.at||Infinity)||a.nearestDistance-b.nearestDistance;
  });
- const count=classified.filter(g=>!!g.nearby.arrival).length,scan=nearbyETAState.progress;
+ // The operator stop-level feed is the source of truth for ACTIVE nearby
+ // services. Routes absent from an older discovery catalogue must appear too.
+ const live=nearbyLiveCards();nearbyETAState.liveCards=live;
+ const liveRoutes=new Set(live.map(c=>c.route));
+ const remaining=classified.filter(g=>!liveRoutes.has(g.route));
+ const scan=nearbyETAState.progress;
  const subtitle=state.demo?'Illustration only':!state.position?'Checking your location… Tap Locate me if needed':
-  `${fmt(count)} ${state.lang==='tc'?'條路線有預計到站時間':'routes with upcoming arrivals'} · ${fmt(groups.length)} ${state.lang==='tc'?'組附近路線':'nearby routes'}`;
+   `${fmt(live.length)} ${state.lang==='tc'?'組附近巴士站有預計到站時間':'nearby services with upcoming arrivals'}`;
  const progress=state.position&&scan&&scan.total?`<p class="small-note nearby-scan-status" aria-live="polite">${state.lang==='tc'?'已查詢':'Checked'} ${fmt(scan.checked)} / ${fmt(scan.total)} ${state.lang==='tc'?'個巴士站的即時到站資料':'stop locations for live arrivals'}${scan.running?'…':''}</p>`:'';
- const top=classified.filter(g=>g.nearby.arrival),rest=classified.filter(g=>!g.nearby.arrival);
- const rows=groups.length?(top.length?`<div class="nearby-list-label">${state.lang==='tc'?'即將到站巴士':'Upcoming buses'}</div>${groupRows(top.slice(0,90),'nearby')}`:'')+
-   (rest.length?`<div class="nearby-list-label nearby-secondary-label">${scan?.running?(state.lang==='tc'?'正在查詢／暫無預報':'Checking / no upcoming ETA'):(state.lang==='tc'?'其他附近路線 · 暫無預報':'Other nearby routes · No upcoming ETA')}</div>${groupRows(rest.slice(0,90),'nearby')}`:''):
-   '<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>';
- return `<div class="card nearby-controls"><div class="nearby-heading">Nearby bus services</div><div class="input-row"><select class="select" id="radiusSelect">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select><button class="primary-button" data-action="locate"><span aria-hidden="true">⌖</span> <span>Locate me</span></button></div>${state.position?`<p class="small-note">GPS accuracy ±${Math.round(state.position.accuracy)}m · ${fmt(candidates.length)} nearby route-stop entries</p>`:''}</div>${line('Routes near you',subtitle)}${progress}<div class="card no-gap nearby-results">${rows}</div>`;}
+ const inventoryWarning=nearbyETAState.officialKMBError?`<p class="small-note nearby-warning">${state.lang==='tc'?'未能取得九巴完整巴士站資料，現使用已儲存站點。':'Official KMB stop inventory unavailable; using cached catalogue stops.'}</p>`:'';
+ const active=live.length?`<div class="nearby-list-label">${state.lang==='tc'?'附近即將到站巴士':'Upcoming buses at nearby stops'}</div>${live.map((c,i)=>nearbyLiveCardHTML(c,i)).join('')}`:'';
+ const other=remaining.length?`<div class="nearby-list-label nearby-secondary-label">${scan?.running||nearbyETAState.officialKMBPending?(state.lang==='tc'?'正在查詢其他巴士站':'Checking other stops'):(state.lang==='tc'?'其他附近路線 · 暫無預計到站時間':'Other nearby routes · No ETA confirmed at nearby stops')}</div>${groupRows(remaining.slice(0,75),'nearby')}`:'';
+ const pending=!live.length&&(scan?.running||nearbyETAState.officialKMBPending)?`<div class="nearby-wait">${state.lang==='tc'?'正在查詢附近各巴士公司的即時到站資料…':'Checking official ETAs for nearby boarding stops…'}</div>`:'';
+ const rows=active+pending+other||(state.position?`<div class="empty">${state.lang==='tc'?'此範圍內沒有已確認的巴士站。':'No verified nearby stops found in this radius.'}</div>`:'<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>');
+ return `<div class="card nearby-controls"><div class="nearby-heading">Nearby bus services</div><div class="input-row"><select class="select" id="radiusSelect">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select><button class="primary-button" data-action="locate"><span aria-hidden="true">⌖</span> <span>Locate me</span></button></div>${state.position?`<p class="small-note">GPS accuracy ±${Math.round(state.position.accuracy)}m · ${fmt(candidates.length)} nearby route-stop entries</p>`:''}</div>${line('Routes near you',subtitle)}${progress}${inventoryWarning}<div class="card no-gap nearby-results">${rows}</div>`;
+}
+function nearbyLiveCardHTML(c,i){
+ const mins=etaMinutes(c.at);
+ const stop=state.lang==='tc'?(c.name_tc||c.name_en):(c.name_en||c.name_tc);
+ const destination=state.lang==='tc'?(c.destination_tc||c.destination_en):(c.destination_en||c.destination_tc);
+ const to=destination?`${state.lang==='tc'?'往':'To'} ${esc(destination)} · `:'';
+ const range=`${fmt(c.distance)}${c.distanceMax-c.distance>=15?'–'+fmt(c.distanceMax):''} ${state.lang==='tc'?'米':'m'}`;
+ return `<button class="route-group nearby-route nearby-live-card" data-action="openNearbyETA" data-index="${i}">
+ <span class="arrival-bus">${esc(c.route)}</span><span class="group-info"><strong>${esc(stop||'Bus stop')}</strong><span class="group-meta">${to}${range}</span>${operatorChips(c.operators)}</span>
+ <span class="nearby-route-eta has-eta"><strong>${mins===0?(state.lang==='tc'?'即將到站':'Due'):mins+(state.lang==='tc'?' 分鐘':' min')}</strong><small>${esc(names[c.next.operator]||c.next.operator)}</small></span><span class="group-arrow">›</span></button>`;
+}
 function settings(){return `${line('Preferences','Choose your language and start page')}
  <div class="card settings-preferences"><div class="card-title">Interface language</div><div class="settings-options"><button class="ghost-button ${state.lang==='en'?'selected-language':''}" data-action="setLanguage" data-value="en">English</button><button class="ghost-button ${state.lang==='tc'?'selected-language':''}" data-action="setLanguage" data-value="tc">繁體中文</button></div>
  <div class="card-title settings-label">Start page</div><div class="settings-options settings-start">${[['nearby','Nearby'],['favourites','Favourites'],['browse','Routes']].map(([id,label])=>`<button class="ghost-button ${state.startPage===id?'selected-language':''}" data-action="setStartPage" data-value="${id}">${label}</button>`).join('')}</div><p class="small-note">This page opens when you launch the dashboard. Your choice is saved on this device.</p></div>
@@ -306,7 +305,7 @@ function render(){const titles={favourites:['Favourites','Your frequently used j
  const [title,desc]=titles[state.view];$('#pageTitle').textContent=title;$('#pageCaption').textContent=desc;
  $('#todayLabel').textContent='HONG KONG · '+hkDate().toUpperCase();$('#modeBadge').textContent='LIVE MODE';$('#modeBadge').classList.remove('demo');$('#syncLabel').textContent='HK time '+hkTime();
  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.toggle('selected',el.dataset.view===state.view));
- $('#mainContent').innerHTML=({favourites,nearby,browse,settings}[state.view]||nearby)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));localizeDocument();if(state.view==='favourites')refreshFavouriteETAs();}
+ $('#mainContent').innerHTML=({favourites,nearby,browse,settings}[state.view]||nearby)();document.body.classList.toggle('route-view',state.view==='browse');document.body.classList.toggle('exact-route',state.view==='browse'&&!!state.query.trim()&&routeResults().length>0&&routeResults().every(g=>g.route===clean(state.query)));localizeDocument();}
 function refreshNearbyResults(){
  if(state.view!=='nearby')return;
  const main=$('#mainContent');if(!main)return;
@@ -469,8 +468,7 @@ async function resolveStopDetails(data,g,token){
   drawStopPicker(token);
  }
 }
-// stop-links.json comes from an offline audit of Transport Department joint-route
-// stop anchors (the generator script is not in this repository; see README).
+// Government-anchor links are generated by make_stop_links.py from audit v3.
 // The key includes each operator's NATIVE route direction, because CTB and KMB
 // often invert O/I on jointly operated routes. Keep native IDs for ETA calls.
 const nativeLinkKey=it=>[it.route,it.operator,it.direction,it.stop_id].join('|');
@@ -517,6 +515,7 @@ async function loadOfficialStopLinks(){
   state.stopLinkLookup=mapped;
   state.stopLinkStatus={loaded:true,coverage:doc.coverage};
   if(state.view==='settings')render();
+  if(state.view==='nearby'&&state.position)startNearbyETAScan();
   return true;
  }catch(err){state.stopLinkStatus={loaded:false,error:err.message};if(state.view==='settings')render();console.warn('Network stop mapping unavailable; retaining conservative matching:',err.message);return false;}
 }
@@ -639,10 +638,9 @@ function orderJourneyStops(clusters){
 }
 function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;}
 function closeDialog(){state.dialogToken++;if(stopObserver){stopObserver.disconnect();stopObserver=null;}state.expandedStopKey=null;$('#modalScrim').classList.add('hidden');state.currentGroup=null;state.currentStop=null;}
-async function openGroup(key,focus=''){
+async function openGroup(key){
  const groups=state.view==='nearby'?makeGroups(state.nearby):routeResults();
  let group=groups.find(g=>g.key===key);if(!group)return;
- const fromNearby=state.view==='nearby'&&!!state.position;
  const token=++state.dialogToken,selected=group.items[0];
  state.currentGroup=group;state.currentStop=null;state.routeFailures=[];state.loadingNames=0;state.expandedStopKey=null;
  dialog(group.route+' → '+localizedDestination(group));
@@ -666,12 +664,7 @@ async function openGroup(key,focus=''){
   // A newly opened full route always starts at its first stop. Do not carry a
   // previous route's scroll offset into this modal.
   const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;
-  // From Nearby, open on the stop the row showed (else the nearest) so the ETAs match.
-  const focusIndex=focus?state.verified.findIndex(c=>c.variants.some(v=>v.operator+'|'+v.stop_id===focus)):-1;
-  const nearestIndex=!fromNearby?-1:focusIndex>=0?focusIndex:state.verified.reduce((best,s,i)=>s.distance!==null&&(best<0||s.distance<state.verified[best].distance)?i:best,-1);
-  if(nearestIndex>=0)state.expandedStopKey=stopKey(state.verified[nearestIndex]);
   drawStopPicker(token);void resolveStopDetails(data,group,token);
-  if(nearestIndex>=0){$(`#modalBody [data-stop-index="${nearestIndex}"]`)?.scrollIntoView({block:'center'});void updateRowETA(nearestIndex,token);}
  }catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
 }
 
@@ -750,13 +743,7 @@ async function updateRowETA(index,token,force=false){const s=state.verified[inde
 }
 
 function etaURL(it){return it.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${encodeURIComponent(it.stop_id)}/${encodeURIComponent(it.route)}/${encodeURIComponent(it.service_type||'1')}`;}
-const etaPending=new Map();
 async function getETA(it,force=false){const key=itemID(it),old=state.etas.get(key);if(!force&&old&&Date.now()-old.time<45000)return old;
- // Favourites, stop rows and the timer can ask for the same stop at once.
- if(!force&&etaPending.has(key))return etaPending.get(key);
- const task=fetchETA(it,key);etaPending.set(key,task);
- try{return await task;}finally{if(etaPending.get(key)===task)etaPending.delete(key);}}
-async function fetchETA(it,key){
  try{const json=await requestJSON(etaURL(it),14000);if(!Array.isArray(json.data))throw Error('Invalid ETA JSON');
  const now=Date.now();const arr=json.data.filter(x=>clean(x.route)===it.route && (!x.dir||x.dir===it.direction) && (!x.stop||clean(x.stop)===it.stop_id) && x.eta)
  .map(x=>({at:Date.parse(x.eta),operator:it.operator,remark:String((state.lang==='en'?x.rmk_en:x.rmk_tc)||x.rmk_en||x.rmk_tc||'')})).filter(x=>Number.isFinite(x.at)&&x.at>=now-30000&&x.at<=now+10800000).sort((a,b)=>a.at-b.at);
@@ -765,14 +752,14 @@ async function fetchETA(it,key){
 function isFavourite(s){return state.favourites.some(f=>favID(f)===favID(s));}
 function drawETA(s,results,token){if(token!==state.dialogToken)return;
  const errs=results.filter(x=>x.error),etas=results.flatMap(x=>x.arr||[]).sort((a,b)=>a.at-b.at).slice(0,6),fav=isFavourite(s);
- let html=`<div class="detail"><strong>${esc(localizedStop(s))}</strong><p class="hint">${esc(localizedDestination(s))} · ${s.direction==='O'?'Outbound':'Inbound'}<br>${operatorChips([...new Set(s.variants.map(x=>x.operator))])}</p></div><div class="group-heading">Next bus arrivals · HK time ${esc(hkTime())}</div>`;
+ let html=`<div class="detail"><strong>${esc(localizedStop(s))}</strong><p class="hint">${state.lang==='tc'?'往':'To'} ${esc(localizedDestination(s))}<br>${operatorChips([...new Set(s.variants.map(x=>x.operator))])}</p></div><div class="group-heading">Next bus arrivals · HK time ${esc(hkTime())}</div>`;
  if(state.demo)html+='<div class="notice">Demo sample only — arrival predictions are not live.</div>';
  if(errs.length)html+='<div class="notice">API request error: '+esc(errs.map(x=>x.error).join(' · '))+'. Check your network or browser API permissions.</div>';
  if(etas.length)html+='<div class="eta-large">'+etas.map(x=>{const mins=Math.max(0,Math.ceil((x.at-Date.now())/60000));return `<div class="eta-chip"><strong>${mins===0?'Due':mins}</strong><small>${esc(names[x.operator])} · ${mins?'min':'now'}</small></div>`;}).join('')+'</div>';
  else if(!errs.length)html+='<p class="hint">No ETA predicted by the operator for this verified stop right now. This is not necessarily a cancelled service.</p>';
  html+=`<div class="two-buttons"><button class="primary-button" data-action="toggleFav">${fav?'★ Remove favourite':'☆ Add favourite'}</button><button class="ghost-button" data-action="refreshStop">↻ Refresh</button></div>${state.currentGroup?'<button class="back-link" data-action="backToStops">← Other stops on this route</button>':''}`;
  $('#modalBody').innerHTML=html;}
-async function showStop(s,force=false){const token=++state.dialogToken;state.currentStop=s;dialog(s.route+' · '+(s.direction==='O'?'Outbound':'Inbound'));
+async function showStop(s,force=false){const token=++state.dialogToken;state.currentStop=s;dialog(s.route+' · '+localizedStop(s));
  $('#modalBody').innerHTML='<p class="hint loading">Requesting real-time arrivals from official operators…</p>';
  if(state.demo){const time=Date.now();drawETA(s,[{arr:[3,12,24].map(m=>({at:time+m*60000,operator:s.variants[0].operator}))}],token);return;}
  const result=await Promise.all(s.variants.map(x=>getETA(x,force)));drawETA(s,result,token);}
@@ -794,13 +781,14 @@ function parseNearbyETA(it,json){
  if(!Array.isArray(json?.data))throw Error('Invalid stop-level ETA response');
  const map=new Map(),now=Date.now();
  for(const x of json.data){
-  const route=clean(x.route),direction=clean(x.dir),at=Date.parse(x.eta||'');
+  const route=clean(x.route),direction=clean(x.dir||x.bound),at=Date.parse(x.eta||'');
   if(!route||!['I','O'].includes(direction)||!Number.isFinite(at)||at<now-30000||at>now+10800000)continue;
-  // Only the requested native stop may count as ETA evidence.
+  // Never attach another stop's ETA to this boarding location.
   if(x.stop&&clean(x.stop)!==it.stop_id)continue;
   const key=route+'|'+direction;
   if(!map.has(key))map.set(key,[]);
-  map.get(key).push({at,operator:it.operator,stop_id:it.stop_id,service_type:x.service_type==null?'':String(x.service_type)});
+  map.get(key).push({at,operator:clean(x.co)==='LWB'?'LWB':it.operator,stop_id:it.stop_id,route,direction,
+    service_type:String(x.service_type||'1'),destination_en:String(x.dest_en||x.dest||''),destination_tc:String(x.dest_tc||'')});
  }
  for(const a of map.values())a.sort((x,y)=>x.at-y.at);
  return map;
@@ -813,62 +801,152 @@ async function getNearbyStopETA(it,force=false){
  const task=(async()=>{
   try{
    const j=await requestJSON(nearbyStopETAURL(it),11000),routes=parseNearbyETA(it,j);
-   const entry={time:Date.now(),routes};nearbyETAState.cache.set(key,entry);return entry;
+   const entry={time:Date.now(),routes,stop:it};nearbyETAState.cache.set(key,entry);return entry;
   }catch(e){
-   const entry={time:Date.now(),routes:new Map(),error:e.message};nearbyETAState.cache.set(key,entry);return entry;
+   const entry={time:Date.now(),routes:new Map(),stop:it,error:e.message};nearbyETAState.cache.set(key,entry);return entry;
   }
  })();
  nearbyETAState.inFlight.set(key,task);
  try{return await task;}finally{if(nearbyETAState.inFlight.get(key)===task)nearbyETAState.inFlight.delete(key);}
 }
-// The nearest stop of a route/direction, plus other operators' poles (or
-// service types) at the same spot, mirrors the merged stop the route dialog
-// marks "Nearest", so the row shows the same ETA as that stop.
-const NEARBY_SAME_STOP_M=40;
-function nearbyBoardingItems(g){
- if(!state.position)return g.items;
- const located=g.items.filter(goodPosition).map(it=>({it,d:distance(state.position.lat,state.position.lng,it.lat,it.lng)})).sort((a,b)=>a.d-b.d);
- if(!located.length)return g.items;
- const nearest=located[0].it;
- return located.filter(x=>x.it===nearest||distance(nearest.lat,nearest.lng,x.it.lat,x.it.lng)<=NEARBY_SAME_STOP_M).map(x=>x.it);
-}
 function nearbyGroupETA(g){
  let arrival=null,pending=false,failed=false;
- const visited=new Set(),now=Date.now(),boarding=nearbyBoardingItems(g);
- for(const it of boarding){
-  const key=nearbyStopKey(it),seen=key+'|'+it.route+'|'+it.direction+'|'+it.service_type;if(visited.has(seen))continue;
-  visited.add(seen);
+ const visited=new Set(),now=Date.now();
+ for(const it of g.items){
+  const key=nearbyStopKey(it);if(visited.has(key+'|'+it.route+'|'+it.direction))continue;
+  visited.add(key+'|'+it.route+'|'+it.direction);
   const record=nearbyETAState.cache.get(key);
   if(!record||now-record.time>NEARBY_ETA_TTL){pending=true;continue;}
   if(record.error){failed=true;continue;}
-  // KMB stop-level ETAs cover every service type; keep the one this stop serves.
-  const options=(record.routes.get(it.route+'|'+it.direction)||[]).filter(x=>it.operator==='CTB'||!x.service_type||x.service_type===String(it.service_type||'1'));
+  const options=record.routes.get(it.route+'|'+it.direction)||[];
   const next=options.find(x=>x.at>=now-30000);
-  if(next&&(!arrival||next.at<arrival.at))arrival={...next,item:it};
+  if(next&&(!arrival||next.at<arrival.at)){
+   arrival={...next,stopName:state.lang==='tc'?(it.name_tc||it.name):(it.name_en||it.name)};
+  }
  }
- return {arrival,pending,failed:failed&&!pending&&!arrival,stop:arrival?.item||boarding[0]||null};
+ return {arrival,pending,failed:failed&&!pending&&!arrival};
+}
+function nearbyLiveCards(){
+ const now=Date.now(),pos=state.position;
+ if(!pos)return [];
+ const candidates=new Map();
+ for(const meta of nearbyETAState.scanStops){
+  const entry=nearbyETAState.cache.get(nearbyStopKey(meta));
+  if(!entry||entry.error||now-entry.time>NEARBY_ETA_TTL)continue;
+  const dist=distance(pos.lat,pos.lng,meta.lat,meta.lng);
+  if(dist>state.radius+15)continue;
+  for(const arrivals of entry.routes.values()){
+   const next=arrivals.find(x=>x.at>=now-30000);if(!next)continue;
+   const dest=next.destination_en||next.destination_tc||'';
+   // Two different operator direction codes can have the SAME destination;
+   // do not use raw inbound/outbound letters as the shared journey key.
+   const key=next.route+'|'+(dest?clean(dest).replace(/[^A-Z0-9]/g,''):next.operator+'|'+next.direction);
+   if(!candidates.has(key))candidates.set(key,[]);
+   candidates.get(key).push({meta,next,dist});
+  }
+ }
+ const cards=[];
+ for(const entries of candidates.values()){
+  entries.sort((a,b)=>a.next.at-b.next.at||a.dist-b.dist);
+  const anchor=entries[0];if(!anchor)continue;
+  const route=anchor.next.route;
+  const makeVariant=r=>({operator:r.next.operator,route,direction:r.next.direction,
+    stop_id:r.meta.stop_id,service_type:r.next.service_type||'1',lat:r.meta.lat,lng:r.meta.lng,
+    name:r.meta.name||r.meta.name_tc||r.meta.name_en||'Bus stop',
+    name_en:r.meta.name_en||r.meta.name||'',name_tc:r.meta.name_tc||r.meta.name||'',
+    destination_en:r.next.destination_en||'',destination_tc:r.next.destination_tc||''});
+  const variants=[makeVariant(anchor)];const selected=[anchor];
+  // Include both carriers only when the government mapping confirms the
+  // exact pair of native stop IDs. Same destination alone is not enough.
+  const anchorKey=nativeLinkKey(variants[0]),mate=state.stopLinkLookup.get(anchorKey);
+  if(mate){
+   const compatible=entries.find(e=>e.next.operator!==anchor.next.operator&&
+       nativeLinkKey(makeVariant(e))===mate&&distance(anchor.meta.lat,anchor.meta.lng,e.meta.lat,e.meta.lng)<=170);
+   if(compatible){variants.push(makeVariant(compatible));selected.push(compatible);}
+  }
+  // Citybus generally publishes more readable mixed-case, road-qualified
+  // names; prefer that for the combined label when available.
+  const display=selected.find(e=>e.next.operator==='CTB'&&e.meta.name_en)||anchor;
+  const readableDest=selected.find(e=>e.next.operator==='CTB'&&e.next.destination_en)?.next.destination_en||
+    selected.find(e=>e.next.operator==='CTB'&&e.next.destination_en)?.next.destination_en||anchor.next.destination_en||'';
+  const near=Math.min(...selected.map(e=>e.dist)),far=Math.max(...selected.map(e=>e.dist));
+  cards.push({route,direction:anchor.next.direction,at:anchor.next.at,distance:near,distanceMax:far,
+    name_en:display.meta.name_en||display.meta.name||'Bus stop',
+    name_tc:display.meta.name_tc||display.meta.name||'巴士站',
+    destination_en:readableDest,destination_tc:anchor.next.destination_tc||readableDest,
+    next:anchor.next,operators:[...new Set(variants.map(v=>v.operator))],variants});
+ }
+ return cards.sort((a,b)=>a.at-b.at||a.distance-b.distance||a.route.localeCompare(b.route,'en',{numeric:true})).slice(0,100);
+}
+async function ensureOfficialKMBStops(){
+ if(nearbyETAState.officialKMBPending)return nearbyETAState.officialKMBPending;
+ if(nearbyETAState.officialKMB.length&&Date.now()-nearbyETAState.officialKMBLoadedAt<24*3600000)return;
+ const task=(async()=>{
+  try{
+   let doc=await indexedGet('official_kmb_stop_list_v1');
+   if(!doc?.time||Date.now()-doc.time>24*3600000||!Array.isArray(doc.stops)||doc.stops.length<1000){
+    const response=await requestJSON('https://data.etabus.gov.hk/v1/transport/kmb/stop',20000);
+    if(!Array.isArray(response.data)||response.data.length<1000)throw Error('Invalid official KMB stop list');
+    const stops=response.data.map(v=>({operator:'KMB',stop_id:clean(v.stop),
+      name_en:String(v.name_en||''),name_tc:String(v.name_tc||''),name:v.name_tc||v.name_en||'',
+      lat:latlon(v.lat),lng:latlon(v.long??v.lng)})).filter(x=>/^[0-9A-F]{16}$/.test(x.stop_id)&&goodPosition(x));
+    if(stops.length<1000)throw Error('Incomplete KMB stop coordinates');
+    doc={time:Date.now(),stops};void indexedPut('official_kmb_stop_list_v1',doc);
+   }
+   nearbyETAState.officialKMB=doc.stops;nearbyETAState.officialKMBLoadedAt=doc.time;nearbyETAState.officialKMBError=null;
+  }catch(e){nearbyETAState.officialKMBError=e.message;console.warn('Official KMB stop inventory unavailable; continuing with catalogue:',e.message);}
+ })();
+ nearbyETAState.officialKMBPending=task;
+ try{await task}finally{nearbyETAState.officialKMBPending=null;if(state.view==='nearby'&&state.position)startNearbyETAScan();}
+}
+function nearbyScanCandidates(){
+ const pos=state.position;if(!pos)return [];
+ const near=it=>goodPosition(it)&&distance(pos.lat,pos.lng,it.lat,it.lng)<=state.radius;
+ const byKey=new Map();
+ // Catalogue stops provide Citybus coverage, and act as a fallback when the
+ // operator's whole-stop inventory is temporarily unavailable.
+ const verifiedKMBIDs=new Set(nearbyETAState.officialKMB.map(v=>v.stop_id));
+ for(const it of state.nearby)if(near(it)&&!(it.operator==='KMB'&&verifiedKMBIDs.has(it.stop_id)))byKey.set(nearbyStopKey(it),it);
+ // Official KMB coordinates and stop names replace stale catalogue positions.
+ const nearbyKMB=new Map();
+ for(const it of nearbyETAState.officialKMB){if(!near(it))continue;
+  nearbyKMB.set(it.stop_id,it);byKey.set(nearbyStopKey(it),it);
+ }
+ // Explicit government-mapped Citybus IDs can be sampled near KMB poles even
+ // if the discovery catalogue omitted their route-stop associations. The
+ // mapping does not prove an identical pole: use a nearby approximate seed;
+ // where catalogue details are available, use those actual coordinates.
+ if(nearbyKMB.size&&state.stopLinkLookup.size){
+  const ctbCatalogue=new Map(state.catalogue.filter(x=>x.operator==='CTB').map(x=>[x.stop_id,x]));
+  for(const [key,partner] of state.stopLinkLookup){
+   const parts=key.split('|');if(parts[1]!=='KMB')continue;
+   const origin=nearbyKMB.get(parts[3]);if(!origin)continue;
+   const cp=partner.split('|'),stop_id=cp[3];if(!/^\d{6}$/.test(stop_id))continue;
+   const current=byKey.get('CTB|'+stop_id);if(current)continue;
+   const known=ctbCatalogue.get(stop_id);
+   if(known&&goodPosition(known)&&!near(known))continue;
+   byKey.set('CTB|'+stop_id,known||{operator:'CTB',stop_id,
+     lat:origin.lat,lng:origin.lng,name:origin.name,name_en:origin.name_en,name_tc:origin.name_tc,
+     approximate:true});
+  }
+ }
+ return [...byKey.values()].filter(near).sort((a,b)=>distance(pos.lat,pos.lng,a.lat,a.lng)-distance(pos.lat,pos.lng,b.lat,b.lng));
 }
 function startNearbyETAScan(force=false){
  ++nearbyETAState.generation;
  const token=nearbyETAState.generation;
- if(!state.position||!state.nearby.length){nearbyETAState.progress=null;return;}
- // Only the boarding stop each nearby row shows needs its arrivals checked.
- const nearest=new Map();
- for(const it of makeGroups(state.nearby).flatMap(nearbyBoardingItems)){
-  const key=nearbyStopKey(it),dist=distance(state.position.lat,state.position.lng,it.lat,it.lng);
-  if(!nearest.has(key)||dist<nearest.get(key).distance)nearest.set(key,{it,distance:dist});
- }
- const all=[...nearest.values()].sort((a,b)=>a.distance-b.distance),remaining=all.filter(v=>{
-  const prior=nearbyETAState.cache.get(nearbyStopKey(v.it));return force||!prior||Date.now()-prior.time>=NEARBY_ETA_TTL;
+ if(!state.position){nearbyETAState.progress=null;return;}
+ const all=nearbyScanCandidates();nearbyETAState.scanStops=all;
+ const remaining=all.filter(it=>{
+  const prior=nearbyETAState.cache.get(nearbyStopKey(it));return force||!prior||Date.now()-prior.time>=NEARBY_ETA_TTL;
  });
  const progress={token,total:all.length,checked:all.length-remaining.length,running:remaining.length>0};
- nearbyETAState.progress=progress;
- scheduleNearbyResults();
+ nearbyETAState.progress=progress;scheduleNearbyResults();
  if(!remaining.length)return;
  let cursor=0;
  const worker=async()=>{
   while(token===nearbyETAState.generation&&cursor<remaining.length){
-   const job=remaining[cursor++];await getNearbyStopETA(job.it,force);
+   const it=remaining[cursor++];await getNearbyStopETA(it,force);
    if(token!==nearbyETAState.generation)return;
    progress.checked++;scheduleNearbyResults();
   }
@@ -881,7 +959,7 @@ function populateNearby(){if(!state.position||!state.catalogue.length)return;
  if(!goodPosition(state.position)){state.nearby=[];banner('You appear to be outside Hong Kong; Nearby needs a Hong Kong GPS position.');render();return;}
  const {lat,lng}=state.position,limit=state.radius,la=limit/110900,lo=limit/(110900*Math.cos(lat*Math.PI/180));
  state.nearby=state.catalogue.filter(x=>goodPosition(x)&&Math.abs(x.lat-lat)<=la&&Math.abs(x.lng-lng)<=lo&&distance(lat,lng,x.lat,x.lng)<=limit);
- banner('');render();startNearbyETAScan();
+ banner('');render();startNearbyETAScan();void ensureOfficialKMBStops();
 }
 function locate(){if(state.demo){banner('Switch to Live mode to use GPS.');return;}
  if(!navigator.geolocation){banner('GPS is not available. Open the HTTPS dashboard in Safari.');return;}
@@ -894,19 +972,16 @@ async function indexedGet(key){try{const db=await new Promise((yes,no)=>{const r
 async function indexedPut(key,value){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
  await new Promise((yes,no)=>{const tx=db.transaction('data','readwrite');tx.objectStore('data').put(value,key);tx.oncomplete=()=>{db.close();yes();};tx.onerror=()=>no(tx.error);});}catch{/* Site catalogue still works this session. */}}
 function applyCatalogue(entries,date){state.catalogue=entries;state.groups=makeGroups(entries);state.catalogueDate=date||'Unknown';render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&!state.demo){if(state.position)populateNearby();else if(!state.locationRequested){state.locationRequested=true;locate();}}}
-// The raw source document is cached (the compact file is ~1.5 MB), not the
-// expanded rows, so IndexedDB reads and writes stay cheap.
-const CATALOGUE_URL='./catalogue-compact.json',CATALOGUE_STORE='catalogue_v5';
-async function loadCatalogue(){const saved=await indexedGet(CATALOGUE_STORE);
- if(saved?.doc){try{applyCatalogue(normalizeCatalogue(saved.doc),saved.doc.catalogue_date||saved.date);}catch{}}
+async function loadCatalogue(){const saved=await indexedGet('catalogue_v4');if(saved&&Array.isArray(saved.entries)){applyCatalogue(saved.entries,saved.date);}
+ // Avoid fetching/parsing the full 14 MB catalogue on every launch.
  if(saved?.fetchedAt&&Date.now()-saved.fetchedAt<6*3600000)return;
- try{const res=await fetch(CATALOGUE_URL,{cache:'default'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut(CATALOGUE_STORE,{doc:json,fetchedAt:Date.now()});}
- catch(e){if(!state.catalogue.length)banner('Could not load catalogue-compact.json: '+e.message+'. Import the JSON file in Settings.');}}
-async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut(CATALOGUE_STORE,{doc:json,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
+ try{const res=await fetch('./catalogue.json',{cache:'default'});if(!res.ok)throw Error('HTTP '+res.status);const json=await res.json();const entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date);await indexedPut('catalogue_v4',{entries,date:state.catalogueDate,fetchedAt:Date.now()});}
+ catch(e){if(!state.catalogue.length)banner('Could not load catalogue.json: '+e.message+'. Import the JSON file in Settings.');}}
+async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut('catalogue_v4',{entries,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
 async function importFavourites(file){try{const json=JSON.parse(await file.text()),arr=Array.isArray(json)?json:Object.values(json);const previous=state.favourites;state.favourites=[...previous,...arr];restoreFavs();state.favourites=[...new Map(state.favourites.map(f=>[favID(f),f])).values()];persist('hkbus_favourites_v2',state.favourites);render();banner('Favourites imported.');}catch(e){banner('Import failed: '+e.message);}}
 let inputTimer;
 document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);if(state.query.trim()&&routeResults().length<=4&&routeResults().every(g=>g.route===clean(state.query))){const result=$('#routeResults');result?.scrollIntoView({block:'nearest',behavior:'smooth'});void ensurePhysicalRoute(clean(state.query));}},160);}});
-document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){++nearbyETAState.generation;nearbyETAState.progress=null;state.radius=Number(e.target.value);if(state.position)populateNearby();else{state.nearby=[];render();locate();}}
+document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){++nearbyETAState.generation;nearbyETAState.progress=null;state.radius=Number(e.target.value);state.nearby=[];state.position=null;render();locate();}
  if(e.target.id==='catalogueFile'){const f=e.target.files?.[0];if(f)importCatalogue(f);e.target.value='';}
  if(e.target.id==='favouritesFile'){const f=e.target.files?.[0];if(f)importFavourites(f);e.target.value='';}});
 document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav){setView(nav.dataset.view);return;}
@@ -914,7 +989,10 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='filterOp'){state.operator=el.dataset.value;render();if(state.query.trim()&&routeResults().every(g=>g.route===clean(state.query)))void ensurePhysicalRoute(clean(state.query));}
  if(action==='setLanguage'){state.lang=el.dataset.value==='tc'?'tc':'en';persist('hkbus_lang',state.lang);render();}
  if(action==='setStartPage'){const next=el.dataset.value;if(START_PAGES.includes(next)){state.startPage=next;persist('hkbus_start_page',next);render();}}
- if(action==='openGroup')openGroup(el.dataset.group,el.dataset.focus);
+ if(action==='openGroup')openGroup(el.dataset.group);
+ if(action==='openNearbyETA'){const c=nearbyETAState.liveCards[Number(el.dataset.index)];if(c){state.currentGroup=null;showStop({route:c.route,direction:c.direction,
+ destination:c.destination_tc||c.destination_en,destination_en:c.destination_en,destination_tc:c.destination_tc,
+ name:c.name_tc,name_en:c.name_en,name_tc:c.name_tc,variants:c.variants});}}
  if(action==='openFavourite')openFavourite(Number(el.dataset.index));
  if(action==='expandStop'){const index=Number(el.dataset.index),s=state.verified[index];if(s){state.expandedStopKey=state.expandedStopKey===stopKey(s)?null:stopKey(s);drawStopPicker(state.dialogToken);if(state.expandedStopKey)void updateRowETA(index,state.dialogToken);}}
  if(action==='saveExpanded'){const s=state.verified.find(x=>stopKey(x)===state.expandedStopKey);if(s&&!state.demo){const idx=state.favourites.findIndex(f=>favID(f)===favID(s));if(idx>=0)state.favourites.splice(idx,1);else state.favourites.push({...s});persist('hkbus_favourites_v2',state.favourites);drawStopPicker(state.dialogToken);render();}}
@@ -932,7 +1010,7 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='clearFav'&&confirm(state.lang==='tc'?UI_ZH['Remove all saved favourites on this browser?']:'Remove all saved favourites on this browser?')){state.favourites=[];persist('hkbus_favourites_v2',[]);banner('Favourites cleared.');render();}
 });
 persist('hkbus_demo',false); // Retire any saved demo preference from earlier versions.
-$('#refreshButton').addEventListener('click',()=>{state.etas.clear();nearbyETAState.cache.clear();state.routeStops.clear();state.routeOrientation.clear();state.routeOrientationPending.clear();persist(ROUTE_DIRECTION_STORAGE,{});state.groups=makeGroups(state.catalogue);banner('Caches refreshed.');render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&state.position)startNearbyETAScan(true);});
+$('#refreshButton').addEventListener('click',()=>{state.etas.clear();nearbyETAState.cache.clear();state.routeStops.clear();state.routeOrientation.clear();state.routeOrientationPending.clear();persist(ROUTE_DIRECTION_STORAGE,{});state.groups=makeGroups(state.catalogue);banner('Caches refreshed.');render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&state.position){startNearbyETAScan(true);void ensureOfficialKMBStops();}});
 $('#closeModal').addEventListener('click',closeDialog);
 $('#modalScrim').addEventListener('click',e=>{if(e.target.id==='modalScrim')closeDialog();});
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
@@ -941,29 +1019,8 @@ window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
 setInterval(()=>{
  if(state.view==='nearby'&&state.position&&state.nearby.length&&document.visibilityState==='visible')startNearbyETAScan();
 },60000);
-// Keep minutes current in the open route/stop dialog and on Favourites. ETAs
-// older than the 45 s cache are re-requested; otherwise only the labels redraw.
-async function refreshStopView(){const s=state.currentStop,token=state.dialogToken;
- const result=await Promise.all(s.variants.map(x=>getETA(x)));
- if(token!==state.dialogToken||state.currentStop!==s)return;
- const modal=$('#modalScrim .modal'),top=modal?.scrollTop||0;drawETA(s,result,token);if(modal)modal.scrollTop=top;}
-function refreshVisibleStopRows(){
- const modal=$('#modalScrim .modal');if(!modal)return;const box=modal.getBoundingClientRect();
- for(const row of document.querySelectorAll('#modalBody [data-stop-index]')){
-  const r=row.getBoundingClientRect();if(r.bottom<box.top-70||r.top>box.bottom+70)continue;
-  void updateRowETA(Number(row.dataset.stopIndex),state.dialogToken);
- }
-}
-setInterval(()=>{
- if(document.visibilityState!=='visible'||state.demo)return;
- const modalOpen=!$('#modalScrim').classList.contains('hidden');
- if(modalOpen&&state.currentStop)void refreshStopView();
- else if(modalOpen&&state.verified.length)refreshVisibleStopRows();
- else if(state.view==='favourites')refreshFavouriteETAs();
-},30000);
 document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='visible'&&state.view==='nearby'&&state.position&&state.nearby.length)startNearbyETAScan();
- if(document.visibilityState==='visible'&&state.view==='favourites')refreshFavouriteETAs();
 });
 const stopLinksReady=loadOfficialStopLinks();
 render();if(state.view==='nearby'&&!state.demo){state.locationRequested=true;locate();}loadCatalogue();
