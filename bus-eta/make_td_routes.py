@@ -32,8 +32,13 @@ def build(doc):
  for f in doc.get('features',[]):
   p=f.get('properties') or {};company=str(p.get('companyCode') or '')
   route=str(p.get('routeNameE') or '').strip().upper()
-  if route and p.get('fullFare') is not None and p.get('serviceMode')=='R' and not p.get('specialType'):
-   fares.setdefault(route,{})[(company,p['routeSeq'])]=[company,p['routeSeq'],float(p['fullFare']),p.get('locEndNameE') or '',p.get('locEndNameC') or '']
+  if route and p.get('fullFare') is not None:
+   # Regular trips first; routes like 110 have only special-type trips.
+   regular=p.get('serviceMode')=='R' and not p.get('specialType')
+   key=(company,p['routeSeq'],p.get('locEndNameE') or '')
+   row=[company,p['routeSeq'],float(p['fullFare']),p.get('locEndNameE') or '',p.get('locEndNameC') or '']
+   bucket=fares.setdefault(route,{})
+   if key not in bucket or (regular and not bucket[key][1]):bucket[key]=(row,regular)
   if '+' not in company:continue  # stop lists for joint routes only
   try:lng,lat=f['geometry']['coordinates'][:2]
   except Exception:continue
@@ -49,10 +54,10 @@ def build(doc):
   if t['route'] and len(t['stops'])>=2:routes.setdefault(t.pop('route'),[]).append(t)
  for v in routes.values():v.sort(key=lambda t:(t['mode']!='R',t['special'],t['seq']))
  if len(routes)<50:raise SystemExit(f'Only {len(routes)} joint routes found; refusing to write')
- doc={'schema_version':1,'generated_utc':datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),'source':URL,'routes':routes,'fares':{r:list(v.values()) for r,v in fares.items()}}
+ doc={'schema_version':1,'generated_utc':datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),'source':URL,'routes':routes,'fares':{r:[row for row,_ in sorted(v.values(),key=lambda x:not x[1])] for r,v in fares.items()}}
  OUTPUT.write_text(json.dumps(doc,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
  print(f'Saved {OUTPUT.name}: {len(routes)} joint routes, {sum(len(v) for v in routes.values())} trips, {OUTPUT.stat().st_size/1e6:.2f} MB')
- print('Fares for',len(fares),'routes; 680:',list(fares.get('680',{}).values()))
+ print('Fares for',len(fares),'routes; 680:',[r for r,_ in fares.get('680',{}).values()],'110:',[r for r,_ in fares.get('110',{}).values()])
  for r in ['680','110']:
   for t in routes.get(r,[]):print(r,t['mode'],t['special'],t['seq'],t['from_en'],'->',t['to_en'],len(t['stops']),'stops')
 

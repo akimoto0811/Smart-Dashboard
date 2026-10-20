@@ -228,7 +228,7 @@ function makeGroups(items){
 
 function routeResults(){
  const q=clean(state.query), all=state.demo?makeGroups(demoStops.flatMap(x=>x.variants.map(v=>({...v,destination:x.destination})))):state.groups;
- let groups=all.filter(g=>state.operator==='ALL'||g.operators.includes(state.operator));
+ let groups=all.filter(g=>(state.operator==='ALL'||g.operators.includes(state.operator))&&!notOnOfficialList(g));
  if(q){
   // Route-like queries must match route NUMBER, never a stop name or another route's destination.
   if(/^[A-Z0-9]{1,6}$/.test(q)&&/\d/.test(q)){
@@ -666,10 +666,13 @@ function clusterStops(items,g){
 // road (the other direction) is never pulled in.
 const TD_MATCH_METRES=250;
 function tdAlign(own,stops){
- const ordered=own.slice().sort((a,b)=>Number(a.seq)-Number(b.seq)),out=new Map();let j=0;
+ // Catalogue items have no seq but are already in route order (stable sort).
+ const ordered=own.slice().sort((a,b)=>(Number(a.seq)||0)-(Number(b.seq)||0)),out=new Map();let j=0;
  for(const it of ordered){if(!goodPosition(it))continue;
-  let best=-1,bestD=TD_MATCH_METRES;
-  for(let k=j;k<Math.min(stops.length,j+10);k++){const d=distance(it.lat,it.lng,stops[k][3],stops[k][4]);if(d<=bestD){best=k;bestD=d;}}
+  // Skipping ahead costs 5 m per stop, so a circular route's shared
+  // start/end terminus matches the start first.
+  let best=-1,bestScore=Infinity;
+  for(let k=j;k<Math.min(stops.length,j+10);k++){const d=distance(it.lat,it.lng,stops[k][3],stops[k][4]),score=d+(k-j)*5;if(d<=TD_MATCH_METRES&&score<bestScore){best=k;bestScore=score;}}
   if(best>=0){out.set(it,best);j=best+1;}
  }
  return out;
@@ -728,6 +731,18 @@ function routeFare(g){
  return hit?hit[2]:fares.length===1?fares[0]:null;
 }
 const fareLabel=f=>f===null||f===undefined?'':'$'+Number(f).toFixed(1);
+// A joint route's catalogue direction that matches none of the Transport
+// Department's trips is stale (e.g. a Citybus 110 "inbound" left over from
+// before the route became circular), so it is left out of search.
+const staleCache=new WeakMap();
+function notOnOfficialList(g){
+ const trips=state.tdRoutes.get(g.route);
+ if(!trips||state.demo)return false;
+ const hit=staleCache.get(g);if(hit&&hit.trips===trips)return hit.stale;
+ const stale=g.operators.every(op=>{const own=g.items.filter(it=>it.operator===op&&String(it.service_type||'1')==='1'),placed=own.filter(goodPosition);
+  return placed.length>=3&&!trips.some(t=>tdAlign(placed,t.stops).size>=placed.length*0.7);});
+ staleCache.set(g,{trips,stale});return stale;
+}
 async function loadTDRoutes(){
  try{const response=await fetch('./td-routes.json',{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
   const doc=await response.json();if(doc.schema_version!==1||!doc.routes)throw Error('Invalid td-routes.json');
