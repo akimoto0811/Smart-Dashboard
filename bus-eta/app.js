@@ -25,7 +25,7 @@ const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
 const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null,
  officialKMB:[],officialKMBLoadedAt:0,officialKMBPending:null,officialKMBError:null,scanStops:[],liveCards:[]};
-const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],nearbyFocus:null,routeRetry:null,loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,tdRoutes:new Map(),tdFares:new Map(),stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
+const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],nearbyFocus:null,routeRetry:null,loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,tdRoutes:new Map(),tdFares:new Map(),stopFares:null,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
 // UI translations only. Route numbers/IDs and stored JSON keys are never translated.
 const UI_ZH = {
  'Hong Kong ·':'香港 ·', 'HONG KONG ·':'香港 ·',
@@ -260,6 +260,11 @@ function tripStopCount(items){const counts=new Map();
  for(const op of new Set(items.map(x=>x.operator))){const own=items.filter(x=>x.operator===op),svc=regularServices(own)[0];
   for(const x of own)if(String(x.service_type||'1')===svc){const k=op+'|'+x.direction;if(!counts.has(k))counts.set(k,new Set());counts.get(k).add(x.stop_id);}}
  return Math.max(0,...[...counts.values()].map(s=>s.size));}
+// Distances of 900 m or more read better in kilometres ("1.2 km").
+const distanceText=(near,far=near)=>{
+ const tc=state.lang==='tc',km=far>=900,one=v=>km?(v/1000).toFixed(1):String(Math.round(v)),unit=km?(tc?' 公里':' km'):(tc?' 米':' m');
+ return one(near)+(Math.round(far)!==Math.round(near)&&one(far)!==one(near)?'–'+one(far):'')+unit;
+};
 const operatorChips = ops => `<span class="operators">${ops.map(x=>`<span class="operator-chip">${esc(names[x]||x)}</span>`).join('')}</span>`;
 function nearbyBoardingItem(g){
  const pos=state.position;
@@ -277,7 +282,7 @@ function groupRows(groups,mode='normal'){return groups.map((g,i)=>{
  const arrival=mode==='nearby'?`<span class="nearby-route-eta ${first?'has-eta':n?.pending?'checking-eta':'no-eta'}">${first?
    `<strong>${etaMinutes(first.at)===0?(state.lang==='tc'?'即將到站':'Due'):etaMinutes(first.at)+(state.lang==='tc'?' 分鐘':' min')}</strong><small>${esc(names[first.operator]||first.operator)}</small>`:
    `<small>${n?.pending?'Checking ETA…':n?.failed?'ETA unavailable':'No upcoming ETA'}</small>`}</span>`:'';
- const nearest=mode==='nearby'&&Number.isFinite(g.nearestDistance)?` · ${Math.round(g.nearestDistance)} ${state.lang==='tc'?'米':'m'}`:'';
+ const nearest=mode==='nearby'&&Number.isFinite(g.nearestDistance)?` · ${distanceText(g.nearestDistance)}`:'';
  const destination=mode==='nearby'?`${state.lang==='tc'?'往':'To'} ${esc(localizedDestination(g))}`:'';
  return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}">
  <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(mode==='nearby'?boardingName:localizedDestination(g))}</strong><span class="group-meta">${mode==='nearby'?destination+nearest:`${fmt(g.stopCount)} stops${routeFare(g)!==null?' · '+fareLabel(routeFare(g)):''}`}</span>${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
@@ -348,7 +353,7 @@ function nearbyStopSectionsHTML(cards){
   const sec=sections.get(key);sec.near=Math.min(sec.near,c.distance);sec.far=Math.max(sec.far,c.distanceMax);sec.rows.push([c,i]);
  });
  return [...sections.values()].sort((a,b)=>a.near-b.near).map(sec=>{
-  const range=`${fmt(sec.near)}${sec.far-sec.near>=15?'–'+fmt(sec.far):''} ${state.lang==='tc'?'米':'m'}`;
+  const range=distanceText(sec.near,sec.far-sec.near>=15?sec.far:sec.near);
   const rows=sec.rows.sort((a,b)=>a[0].at-b[0].at),open=nearbyETAState.openStops.has(sec.key),shown=open?rows:rows.slice(0,NEARBY_STOP_ROWS),hidden=rows.length-shown.length;
   return `<div class="nearby-stop-heading"><span class="nearby-stop-name">${esc(sec.name)}</span><span class="nearby-stop-distance">${range}</span></div>`+
    shown.map(([c,i])=>nearbyLiveCardHTML(c,i)).join('')+
@@ -743,6 +748,31 @@ function notOnOfficialList(g){
   return placed.length>=3&&!trips.some(t=>tdAlign(placed,t.stops).size>=placed.length*0.7);});
  staleCache.set(g,{trips,stale});return stale;
 }
+// Fare from each stop (Transport Department section fares, td-fares.json).
+// Loaded the first time a route is opened, then matched to the listed stops
+// by position along the best-fitting official trip.
+let stopFaresLoading=null;
+function loadStopFares(){
+ stopFaresLoading??=fetch('./td-fares.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json();})
+  .then(doc=>{if(doc.schema_version!==1||!doc.routes)throw Error('Invalid td-fares.json');state.stopFares=new Map(Object.entries(doc.routes));})
+  .catch(err=>{console.warn('Stop fares unavailable:',err.message);state.stopFares=new Map();});
+ return stopFaresLoading;
+}
+const stopFareCache=new WeakMap();
+function stopFares(rows,g){
+ if(!state.stopFares||!g)return null;
+ const cached=stopFareCache.get(rows);if(cached)return cached;
+ const ops=g.operators||[...new Set(g.items?.map(x=>x.operator)||[])];
+ const trips=(state.stopFares.get(g.route)||[]).filter(t=>ops.some(op=>t.company.split('+').includes(op)));
+ const points=rows.map(r=>{const v=r.variants.find(goodPosition);return v?{lat:v.lat,lng:v.lng}:{lat:null,lng:null};});
+ const placed=points.filter(goodPosition).length;
+ let best=null,bestCount=0;
+ for(const t of trips){const stops=t.stops.map(([lat,lng,fare])=>[0,0,fare,lat,lng]),hit=tdAlign(points,stops);
+  if(hit.size>bestCount){bestCount=hit.size;best={stops,hit};}}
+ const out=new Array(rows.length).fill(null);
+ if(best&&bestCount>=placed*0.6)points.forEach((pt,i)=>{const k=best.hit.get(pt);if(k!==undefined&&best.stops[k][2])out[i]=best.stops[k][2];});
+ stopFareCache.set(rows,out);return out;
+}
 async function loadTDRoutes(){
  try{const response=await fetch('./td-routes.json',{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
   const doc=await response.json();if(doc.schema_version!==1||!doc.routes)throw Error('Invalid td-routes.json');
@@ -881,6 +911,7 @@ async function openGroup(key,nearbyCard=null){
   const focusIndex=focus?.size?state.verified.findIndex(s=>s.variants.some(v=>focus.has(nativeLinkKey(v)))):-1;
   if(focusIndex>=0)state.expandedStopKey=stopKey(state.verified[focusIndex]);
   drawStopPicker(token);void resolveStopDetails(data,group,token);
+  void loadStopFares().then(()=>{if(token===state.dialogToken)drawStopPicker(token);});
   if(focusIndex>=0){$(`#modalBody [data-stop-index="${focusIndex}"]`)?.scrollIntoView({block:'center'});void updateRowETA(focusIndex,token);}
  }catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
 }
@@ -905,7 +936,7 @@ function stopExpandedMarkup(s){const data=state.demo?{arr:[3,12,24].map(n=>({at:
  if(state.position&&s.variants.length>1&&s.farthestDistance!==null&&s.distance!==null&&s.farthestDistance-s.distance>25){
   const opDistances=[...new Set(s.variants.map(v=>v.operator))].map(op=>{
    const ds=s.variants.filter(v=>v.operator===op&&goodPosition(v)).map(v=>distance(state.position.lat,state.position.lng,v.lat,v.lng));
-   return ds.length?esc(names[op]||op)+': '+Math.min(...ds)+' m':'';
+   return ds.length?esc(names[op]||op)+': '+distanceText(Math.min(...ds)):'';
   }).filter(Boolean);
   html+='<p class="small-note">'+opDistances.join(' · ')+'</p>';
  }
@@ -928,10 +959,11 @@ function drawStopPicker(token){if(token!==state.dialogToken)return;
  if(state.routeFailures.length)body+='<div class="notice">Some operators could not be loaded: '+esc(state.routeFailures.join('; '))+'</div>';
  if(state.loadingNames>0)body+='<p class="small-note" aria-live="polite">'+fmt(state.loadingNames)+' stop names are being verified in the background.</p>';
  if(!state.verified.length)body+='<div class="notice">No verified stops available for this service.</div>';
- else body+='<div class="result-list stop-list">'+state.verified.map((s,i)=>{
+ const fares=stopFares(state.verified,state.currentGroup);
+ if(state.verified.length)body+='<div class="result-list stop-list">'+state.verified.map((s,i)=>{
  const expanded=state.expandedStopKey===stopKey(s);
   const spread=s.distance!==null&&s.farthestDistance!==null&&s.farthestDistance-s.distance>25;
-  const distanceLabel=s.distance!==null?' · '+esc(s.distance)+(spread?'–'+esc(s.farthestDistance):'')+' m':'';
+  const distanceLabel=(s.distance!==null?' · '+esc(distanceText(s.distance,spread?s.farthestDistance:s.distance)):'')+(fares?.[i]?' · <span class="stop-fare">'+fareLabel(fares[i])+'</span>':'');
  return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-ordinal" aria-label="Stop '+(i+1)+'">'+(i+1)+'</span><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+(i===highlightedIndex?' <span class="nearest-label">'+(focusIndex>=0?(state.lang==='tc'?'附近上車站':'Your nearby stop'):(state.lang==='tc'?'最近':'Nearest'))+'</span>':'')+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
  }).join('')+'</div>';
  $('#modalBody').innerHTML=body;
