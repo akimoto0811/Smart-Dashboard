@@ -30,3 +30,14 @@ h1{font-size:34px;letter-spacing:-1.4px;line-height:1.12;font-weight:780}h1 span
 .bottom{width:min(100%,610px);padding:12px 10px calc(12px + var(--safe));background:#0d1525;border-top-color:#233049;box-shadow:0 -8px 28px rgba(7,12,23,.45);backdrop-filter:none}.navitem{color:#909ab2;gap:7px;font-size:10px;font-weight:500}.navitem.active{color:var(--mint);font-weight:720}.navitem svg{width:23px;height:23px;stroke-width:1.8}
 @media(min-width:570px){body{padding-top:0}.app{border:0;border-radius:0;min-height:100dvh;box-shadow:none}}@media(min-width:650px){.app{padding-top:58px}h1{font-size:44px}.card{padding:24px}}
 .home-link{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 15px 0 10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:13px;font-size:13px;font-weight:700;text-decoration:none;margin:-10px 0 18px}.home-link svg{width:17px;height:17px;fill:none;stroke:var(--mint);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.home-link:active{transform:scale(.96)}
+/* Compact sizes matching Bus ETA's lists and cards. */
+.searchcard{padding:16px 18px}.card-eyebrow{margin-bottom:12px}.field-label{margin:0 0 6px}select{height:47px}.route-info{margin-top:12px;font-size:12px}
+.section{margin-top:22px}.section-head{margin:0 1px 12px}.refresh-btn{padding:8px 12px;font-size:12px}
+.directionbar{gap:8px;margin-bottom:10px}.direction{min-height:46px;padding:8px 12px;gap:2px}.direction strong{font-size:13px}.direction small{font-size:10px}
+.eta-main{padding:15px 16px 14px;border-radius:20px}.eta-main:before{height:3px}.eta-main-top .micro{font-size:11px;color:var(--muted)}.chip{padding:5px 8px;font-size:10px}
+.eta-content{margin-top:10px;align-items:center}.eta-number{font-size:46px;letter-spacing:-2px;line-height:1;color:var(--mint)}.eta-unit{font-size:13px;color:var(--muted)}.eta-destination{font-size:16px;font-weight:770;letter-spacing:-.3px;margin-top:8px}.eta-destination small{font-size:11px;margin-top:4px;color:var(--muted)}.train-graphic{width:46px;height:50px;opacity:.45}
+.eta-main.empty .eta-number{font-size:30px}
+.nextlist{gap:8px;margin-top:10px}.nextbox{padding:9px 6px;border-radius:13px}.nextbox strong{font-size:15px;font-weight:800}.nextbox small{font-size:10px;margin-top:3px;min-height:0}.nextbox .minor{font-size:10px}
+.section-foot{font-size:11px;margin-top:10px}.actionrow{gap:9px;margin-top:12px}.actionbtn{min-height:42px;padding:10px;font-size:13px}
+.favourite-card{padding:13px 14px;border-radius:16px;background:var(--panel);border-color:var(--line)}.favourite-card strong{font-size:14px}.favourite-card small{font-size:11px;color:var(--muted)}
+.subcard{padding:13px;border-radius:14px}.subcard h3{font-size:13px}.subcard p,.data-status{font-size:11px}.listline{padding:12px 0;font-size:13px}.infoicon{width:38px;height:38px;font-size:17px}
