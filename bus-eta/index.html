@@ -4,10 +4,11 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#0c1220"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="HK Bus ETA"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="icons/icon-192.png">
 <title>HK Bus ETA — Dashboard</title>
-<link rel="manifest" href="manifest.webmanifest?v=3.7.2"><link rel="stylesheet" href="styles.css?v=3.7.2">
+<link rel="manifest" href="manifest.webmanifest?v=3.7.3"><link rel="stylesheet" href="styles.css?v=3.7.3">
 </head>
 <body>
 <div class="app-shell">
+  <a class="home-link" href="../"><span aria-hidden="true">‹</span> <span>Dashboard</span></a>
   <header class="topline"><div><div class="eyebrow" id="todayLabel">HONG KONG · TODAY</div><h1 id="pageTitle">Nearby Stops</h1><div class="sub-head" id="pageCaption">Services around your location</div></div><button class="round-button" id="refreshButton" aria-label="Refresh arrivals" title="Refresh">↻</button></header>
   <section id="notice" class="notice hidden" role="status"></section>
   <main id="mainContent"></main>
@@ -20,5 +21,5 @@
 </div>
 <div class="modal-scrim hidden" id="modalScrim" role="presentation"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-head"><h2 id="modalTitle">Route details</h2><button id="closeModal" class="round-button" aria-label="Close">×</button></div><div id="modalBody"></div></div></div>
 <input type="file" accept="application/json,.json" id="catalogueFile" hidden /><input type="file" accept="application/json,.json" id="favouritesFile" hidden />
-<script src="app.js?v=3.7.2" defer></script>
+<script src="app.js?v=3.7.3" defer></script>
 </body></html>
