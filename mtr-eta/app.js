@@ -29,6 +29,11 @@ function addStations(){
  for(const item of Object.values(LINES).flatMap(l=>l.stations))stationByCode.set(item[0],item);
 }
 addStations();
+// Admin mode: open any page once with ?admin=1 (or ?admin=0 to turn it off).
+// It only hides Diagnostics & data from other people; it is not a security
+// feature, since the site and its data are public.
+const IS_ADMIN=(()=>{const q=new URLSearchParams(location.search).get('admin');
+ try{if(q==='1')localStorage.setItem('dashboard_admin','1');else if(q==='0')localStorage.removeItem('dashboard_admin');return localStorage.getItem('dashboard_admin')==='1';}catch{return q==='1';}})();
 const prefKey='mtr_eta_v1_prefs';
 function load(){try{const p=JSON.parse(localStorage.getItem(prefKey)||'{}');return p&&typeof p==='object'?p:{}}catch{return {}}}
 const prev=load();
@@ -122,3 +127,4 @@ function install(){translate();navigate(state.view);
  void loadCSVData();
 }
 install();
+if(!IS_ADMIN)for(const id of ['dataTitle','coverageTitle'])document.getElementById(id)?.closest('.subcard')?.classList.add('hidden');
