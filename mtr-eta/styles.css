@@ -116,3 +116,24 @@ select{height:40px;padding-top:8px;padding-bottom:8px;border-radius:13px}
 #view-fares .subcard,#fareServiceLabel{display:none}
 .journey-fare{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:9px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
 .journey-fare b{color:var(--fg);font-weight:720;margin-left:3px}
+
+/* Journey: line then station for each end, with station information below. */
+.pick-head{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.pick-head .field-label{margin:0 0 4px}
+#view-fares .formrow{margin-top:0;column-gap:8px}
+.journey-pick .swap-btn{position:static;transform:none;width:auto;height:22px;padding:0 4px;font-size:16px;line-height:1}
+.station-info{margin-top:10px;border:1px solid var(--line);background:var(--panel2);border-radius:14px}
+.station-info summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 12px;font-size:13px;font-weight:720;cursor:pointer}
+.station-info summary::-webkit-details-marker{display:none}
+.station-info summary>span:first-child:after{content:' ›';color:var(--muted)}
+.station-info[open] summary>span:first-child:after{content:' ⌄'}
+.info-pills{display:flex;gap:5px;min-width:0}
+.info-pills .pill{padding:5px 9px;font-size:11px;border-radius:10px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.info-body{padding:0 12px 11px}
+.info-lines{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--fg);margin-bottom:8px}
+.info-line{display:inline-flex;align-items:center;gap:6px}
+.info-body h3{font-size:12px;color:var(--muted);margin:0 0 5px;font-weight:700}
+.bottom{grid-template-columns:repeat(4,1fr)}
+#faresTitle{display:none}
+#view-fares .journey-pick .pick-head:first-child{margin-top:0}
+.info-pills .pill{max-width:130px}
