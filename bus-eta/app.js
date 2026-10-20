@@ -25,7 +25,7 @@ const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
 const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null,
  officialKMB:[],officialKMBLoadedAt:0,officialKMBPending:null,officialKMBError:null,scanStops:[],liveCards:[]};
-const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],nearbyFocus:null,routeRetry:null,loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
+const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],nearbyFocus:null,routeRetry:null,loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,tdRoutes:new Map(),tdFares:new Map(),stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
 // UI translations only. Route numbers/IDs and stored JSON keys are never translated.
 const UI_ZH = {
  'Hong Kong ·':'香港 ·', 'HONG KONG ·':'香港 ·',
@@ -114,7 +114,9 @@ function translatePhrase(s){
    [/^(\d+) stop names are being verified in the background\.$/,(m,n)=>'正在背景核實 '+n+' 個站名。'],
    [/^(\d+) saved$/,(m,n)=>n+' 項已收藏'],
    [/^([\d,]+) stops$/,(m,n)=>n+' 個站'],
+   [/^([\d,]+) stops · (\$[\d.]+)$/,(m,n,f)=>n+' 個站 · '+f],
    [/^([\d,]+) stops · Ordered from first stop to terminus$/,(m,n)=>n+' 個站 · 按行車次序由起點至終點'],
+   [/^([\d,]+) stops · Full fare (\$[\d.]+) · Ordered from first stop to terminus$/,(m,n,f)=>n+' 個站 · 全程車費 '+f+' · 按行車次序由起點至終點'],
    [/^(\d+) m$/,(m,n)=>n+' 米'],
    [/^ · (\d+) m$/,(m,n)=>' · '+n+' 米'],
    [/^(\d+) min$/,(m,n)=>n+' 分鐘'],
@@ -278,7 +280,7 @@ function groupRows(groups,mode='normal'){return groups.map((g,i)=>{
  const nearest=mode==='nearby'&&Number.isFinite(g.nearestDistance)?` · ${Math.round(g.nearestDistance)} ${state.lang==='tc'?'米':'m'}`:'';
  const destination=mode==='nearby'?`${state.lang==='tc'?'往':'To'} ${esc(localizedDestination(g))}`:'';
  return `<button class="route-group ${mode==='nearby'?'nearby-route':''}" data-action="openGroup" data-group="${esc(g.key)}">
- <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(mode==='nearby'?boardingName:localizedDestination(g))}</strong><span class="group-meta">${mode==='nearby'?destination+nearest:`${fmt(g.stopCount)} stops`}</span>${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
+ <span class="arrival-bus">${esc(g.route)}</span><span class="group-info"><strong>${esc(mode==='nearby'?boardingName:localizedDestination(g))}</strong><span class="group-meta">${mode==='nearby'?destination+nearest:`${fmt(g.stopCount)} stops${routeFare(g)!==null?' · '+fareLabel(routeFare(g)):''}`}</span>${operatorChips(g.operators)}</span>${arrival}<span class="group-arrow">›</span></button>`;
  }).join('');}
 function favouriteETAMarkup(f,i){
  const result=state.demo?null:combinedETAs(f),first=result?.arr[0];
@@ -625,6 +627,7 @@ function sameBoardingLandmark(item,cluster){
  });
 }
 function clusterStops(items,g){
+ const official=tdClusters(items,g);if(official)return official;
  const ordered=items.slice().sort((a,b)=>a.seq-b.seq||a.operator.localeCompare(b.operator));
  const clusters=[];
  for(const it of ordered){
@@ -654,6 +657,81 @@ function clusterStops(items,g){
  // operators can use different stop numbering, so never compare their raw seq
  // directly as though both were a single shared sequence.
  return mergeUnlinkedNeighbours(orderJourneyStops(clusters));
+}
+// Transport Department stop list (td-routes.json, built weekly from
+// data.gov.hk). A joint route is listed there once with one entry per physical
+// stop, so each KMB and Citybus pole is placed under its nearest official stop,
+// keeping the official order. Each operator's poles are walked in their own
+// sequence and only matched forwards, so a pole on the opposite side of the
+// road (the other direction) is never pulled in.
+const TD_MATCH_METRES=250;
+function tdAlign(own,stops){
+ const ordered=own.slice().sort((a,b)=>Number(a.seq)-Number(b.seq)),out=new Map();let j=0;
+ for(const it of ordered){if(!goodPosition(it))continue;
+  let best=-1,bestD=TD_MATCH_METRES;
+  for(let k=j;k<Math.min(stops.length,j+10);k++){const d=distance(it.lat,it.lng,stops[k][3],stops[k][4]);if(d<=bestD){best=k;bestD=d;}}
+  if(best>=0){out.set(it,best);j=best+1;}
+ }
+ return out;
+}
+function tdClusters(items,g){
+ const trips=state.tdRoutes.get(g.route);
+ const ops=[...new Set(items.map(it=>it.operator))];
+ if(!trips||ops.length<2)return null;
+ // Prefer the regular all-day trip; special trips (detours, short workings)
+ // are used only when no regular trip fits these poles.
+ let pick=null;
+ for(const trip of trips){
+  if(pick&&pick.regular&&!(trip.mode==='R'&&!trip.special))break;
+  const assigned=new Map();let ok=true,matched=0;
+  for(const op of ops){const own=items.filter(it=>it.operator===op),m=tdAlign(own,trip.stops);
+   if(m.size<own.filter(goodPosition).length*0.7){ok=false;break;}
+   matched+=m.size;m.forEach((k,it)=>assigned.set(it,k));}
+  if(ok&&(!pick||matched>pick.matched))pick={trip,assigned,matched,regular:trip.mode==='R'&&!trip.special};
+ }
+ if(!pick)return null;
+ const rows=new Map(),loose=[];
+ for(const it of items){const k=pick.assigned.get(it);
+  if(k===undefined){loose.push(it);continue;}
+  if(!rows.has(k)){const [,name_en,name_tc,lat,lng]=pick.trip.stops[k];
+   rows.set(k,{route:g.route,direction:g.direction,destination:g.destination,destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination,
+    name:name_tc||name_en,name_en,name_tc,lat,lng,seq:k+1,order:k,variants:[]});}
+  const row=rows.get(k);if(!row.variants.some(v=>itemID(v)===itemID(it)))row.variants.push(it);
+ }
+ // Citybus names are mixed case with road context; prefer them for display.
+ for(const row of rows.values()){const ctb=row.variants.find(v=>v.operator==='CTB'&&v.name_en);
+  if(ctb){row.name_en=ctb.name_en;if(ctb.name_tc)row.name_tc=ctb.name_tc;row.name=ctb.name_tc||ctb.name||row.name;}}
+ // A pole not on the official trip is a special-departure stop (e.g. 680 via
+ // Chung On) and is hidden, unless it was picked from Nearby or has no
+ // position yet; those stay right after the operator's previous matched stop.
+ const focus=new Set(state.nearbyFocus?.route===g.route?state.nearbyFocus.keys:[]);
+ for(const it of loose){if(goodPosition(it)&&!focus.has(nativeLinkKey(it)))continue;const before=[...pick.assigned].filter(([v,k])=>v.operator===it.operator&&Number(v.seq)<Number(it.seq)).map(([,k])=>k);
+  const order=(before.length?Math.max(...before):-1)+0.5;
+  rows.set('loose|'+itemID(it),{route:g.route,direction:g.direction,destination:g.destination,destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination,
+   name:it.name||'Loading stop name…',name_en:it.name_en||'',name_tc:it.name_tc||it.name||'',lat:it.lat,lng:it.lng,seq:Number(it.seq)||0,order,variants:[it]});}
+ const out=[...rows.values()].sort((a,b)=>a.order-b.order),pos=state.position;
+ for(const c of out){const ds=pos?c.variants.filter(goodPosition).map(v=>distance(pos.lat,pos.lng,v.lat,v.lng)):[];
+  c.distance=ds.length?Math.min(...ds):null;c.farthestDistance=ds.length?Math.max(...ds):null;delete c.order;}
+ return out;
+}
+// Full adult fare from the Transport Department list: the regular trip of one
+// of the group's operators whose destination matches, else the only fare.
+const fareKey=v=>String(v||'').normalize('NFKC').toUpperCase().replace(/[^A-Z0-9\u3400-\u9FFF]/g,'');
+function routeFare(g){
+ const rows=(state.tdFares.get(g.route)||[]).filter(([company])=>(g.operators||g.items?.map(x=>x.operator)||[]).some(op=>company.split('+').includes(op)));
+ if(!rows.length)return null;
+ const dest=fareKey(g.destination_en),destTC=fareKey(g.destination_tc);
+ const hit=rows.find(r=>(dest&&(fareKey(r[3]).startsWith(dest)||dest.startsWith(fareKey(r[3]))))||(destTC&&fareKey(r[4])===destTC));
+ const fares=[...new Set(rows.map(r=>r[2]))];
+ return hit?hit[2]:fares.length===1?fares[0]:null;
+}
+const fareLabel=f=>f===null||f===undefined?'':'$'+Number(f).toFixed(1);
+async function loadTDRoutes(){
+ try{const response=await fetch('./td-routes.json',{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);
+  const doc=await response.json();if(doc.schema_version!==1||!doc.routes)throw Error('Invalid td-routes.json');
+  state.tdRoutes=new Map(Object.entries(doc.routes));state.tdFares=new Map(Object.entries(doc.fares||{}));
+  if(state.view==='browse')render();
+ }catch(err){console.warn('Official TD stop list unavailable; using operator matching:',err.message);}
 }
 // A joint-route stop missing from stop-links.json (e.g. 680 Central Library,
 // KMB and Citybus poles ~165 m apart) is left as two adjacent rows. Merge two
@@ -775,7 +853,7 @@ async function openGroup(key,nearbyCard=null){
   state.currentGroup=group;
   $('#modalTitle').textContent=group.route+' → '+localizedDestination(group);
   $('#modalBody').innerHTML='<p class="hint loading">Checking all verified stops from first stop to terminus…</p>';
-  await stopLinksReady;
+  await Promise.all([stopLinksReady,tdRoutesReady]);
   if(token!==state.dialogToken)return;
   const data=await officialGroup(group,nearbyCard?.variants||[]);
   if(token!==state.dialogToken)return;
@@ -829,7 +907,7 @@ function drawStopPicker(token){if(token!==state.dialogToken)return;
  const focusIndex=focus?.size?state.verified.findIndex(s=>s.variants.some(v=>focus.has(nativeLinkKey(v)))):-1;
  const highlightedIndex=focusIndex>=0?focusIndex:closestIndex;
  let body='<div class="stop-picker-caption">Select your boarding stop</div>';
- if(state.verified.length)body+='<p class="small-note journey-summary">'+fmt(state.verified.length)+' stops · Ordered from first stop to terminus</p>';
+ if(state.verified.length){const fare=state.currentGroup?routeFare(state.currentGroup):null;body+='<p class="small-note journey-summary">'+fmt(state.verified.length)+' stops'+(fare!==null?' · Full fare '+fareLabel(fare):'')+' · Ordered from first stop to terminus</p>';}
  if(state.routeFailures.length)body+='<div class="notice">Some operators could not be loaded: '+esc(state.routeFailures.join('; '))+'</div>';
  if(state.loadingNames>0)body+='<p class="small-note" aria-live="polite">'+fmt(state.loadingNames)+' stop names are being verified in the background.</p>';
  if(!state.verified.length)body+='<div class="notice">No verified stops available for this service.</div>';
@@ -1179,4 +1257,5 @@ document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='visible'&&state.view==='favourites')refreshFavouriteETAs();
 });
 const stopLinksReady=loadOfficialStopLinks();
+const tdRoutesReady=loadTDRoutes();
 render();if(state.view==='nearby'&&!state.demo){state.locationRequested=true;locate();}loadCatalogue();
