@@ -90,9 +90,14 @@ function renderFav(){txt('favCount',state.favourites.length+' '+T().savedCount);
  $('favouriteList').innerHTML=state.favourites.length?state.favourites.map(key=>{const [c,id]=key.split('|');const l=LINES[c],s=l?.stations.find(row=>row[0]===id);if(!l||!s)return '';return `<button class="favourite-card" data-key="${safe(key)}"><span class="line-marker" style="background:${safe(l.color)}"></span><span class="label"><strong>${safe(loc(s))}</strong><small>${safe(lineName(l))}</small></span><span class="arrow">›</span></button>`}).join(''):`<div class="smallnotice">${safe(T().noFav)}</div>`;
  for(const btn of $('favouriteList').querySelectorAll('[data-key]'))btn.onclick=()=>{const [l,st]=btn.dataset.key.split('|');state.line=l;state.station=st;state.dir='UP';populateSelects();persist();navigate('eta')};
 }
+// Same date line as Bus ETA: "HONG KONG · 20 OCTOBER 2026 · 21:57".
+function dateLine(){const now=new Date(),date=new Intl.DateTimeFormat(state.lang==='tc'?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',year:'numeric',month:'long',day:'numeric'}).format(now),time=new Intl.DateTimeFormat('en-HK',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hour12:false}).format(now);
+ txt('eyebrow',(state.lang==='tc'?'香港':'HONG KONG')+' · '+date.toUpperCase()+' · '+time);}
+setInterval(dateLine,30000);
 function translate(){document.documentElement.lang=state.lang==='tc'?'zh-Hant':'en';const t=T();
  const ids={homeLabel:'home',eyebrow:'eyebrow',subtitle:'subtitle',selectTitle:'choose',lineLabel:'line',stationLabel:'station',arrivalTitle:'next',refreshLabel:'refresh',favTitle:'favTitle',favHelp:'favHelp',faresHeader:'faresHeader',faresTitle:'faresTitle',fareDesc:'fareDesc',fareFromLabel:'fareFrom',fareToLabel:'fareTo',fareServiceLabel:'fareService',octopusLabel:'octopus',singleLabel:'single',fareSource:'fareSource',accessTitle:'access',exitTitle:'exits',transferTitle:'transfer',settingsTitle:'settings',languageLabel:'interface',startLabel:'start',settingsInfoTitle:'about',settingsInfoDesc:'aboutDesc',coverageTitle:'coverage',coverageDesc:'coverageDesc',startETA:'navETA',startFav:'navFav',stationDetailsBtn:'stationInfo',dataTitle:'dataTitle'};
  for(const [id,key] of Object.entries(ids))txt(id,t[key]);
+ dateLine();
  $('fareService').options[0].text=t.fareHeavy;$('fareService').options[1].text=t.fareAirport;
  for(const [id,key] of Object.entries({eta:'navETA',favourites:'navFav',fares:'navFares',station:'navStation',settings:'navSettings'})){const n=document.querySelector('[data-nav="'+id+'"]');if(n)n.textContent=t[key]}
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('sel',b.dataset.lang===state.lang));document.querySelectorAll('[data-start]').forEach(b=>b.classList.toggle('sel',b.dataset.start===state.start));

@@ -146,4 +146,4 @@ button,input,select {touch-action:manipulation}
 .nearby-route-eta.arriving strong{color:#ffbf47}
 .nearby-more{width:100%;border:0;border-bottom:1px solid var(--line);background:none;color:var(--mint);font-size:12px;font-weight:700;padding:10px 0;text-align:left}
 .nearby-live-card{padding:9px 0}
-.home-link{display:inline-flex;align-items:center;gap:3px;color:var(--mint);font-size:13px;font-weight:700;text-decoration:none;margin:-14px 0 12px;padding:4px 0}
+.home-link{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 15px 0 10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:13px;font-size:13px;font-weight:700;text-decoration:none;margin:-10px 0 18px}.home-link svg{width:17px;height:17px;fill:none;stroke:var(--mint);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.home-link:active{transform:scale(.96)}
