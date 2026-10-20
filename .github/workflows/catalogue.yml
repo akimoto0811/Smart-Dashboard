@@ -26,6 +26,10 @@ jobs:
           python-version: '3.12'
       - name: Inspect the Transport Department route-stop list
         run: python3 bus-eta/make_td_routes.py --probe
+        continue-on-error: true
+      - name: Print the live 680 stop lists
+        run: python3 bus-eta/probe_route.py 680
+        continue-on-error: true
       - name: Build catalogue-compact.json
         run: python3 bus-eta/make_catalogue.py
       - name: Check KMB stop IDs against the official route-stop list
