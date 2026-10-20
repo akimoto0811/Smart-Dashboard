@@ -79,7 +79,10 @@ function renderETA(){const T_=T(),line=LINES[state.line];document.documentElemen
 function fillStations(side,keep){const line=$('fare'+side+'Line').value,sel=$('fare'+side);sel.innerHTML=D(line).map(s=>`<option value="${safe(s[0])}">${safe(loc(s))}</option>`).join('');sel.value=D(line).some(s=>s[0]===keep)?keep:D(line)[0][0];}
 function fareStations(){for(const [side,dl,ds] of [['From','ISL','ADM'],['To','ISL','CHW']]){const ls=$('fare'+side+'Line'),keep=$('fare'+side).value||ds,line=ls.value||dl;
  ls.innerHTML=Object.entries(LINES).map(([code,l])=>`<option value="${safe(code)}">${safe(lineName(l))}</option>`).join('');ls.value=LINES[line]?line:dl;fillStations(side,keep);}}
-function renderFare(){$('fareService').value=[$('fareFromLine').value,$('fareToLine').value].includes('AEL')?'airport':'heavy';const d=state.official;const a=d?.codes?.[$('fareFrom').value],b=d?.codes?.[$('fareTo').value];const prices=$('fareService').value==='airport'?d?.airport_fares:d?.fares;const fare=prices?.[a+'|'+b];txt('octopusValue',fmtDollar(fare?.octopus));txt('singleValue',fmtDollar(fare?.single));txt('fareDisclaimer',d?T().estimate+(fare?'':` ${T().noFare}`):T().noFile);renderJourney();renderStation();}
+function renderFare(){$('fareService').value=[$('fareFromLine').value,$('fareToLine').value].includes('AEL')?'airport':'heavy';const d=state.official;const airport=$('fareService').value==='airport';
+ // Airport Express fares use their own station IDs (HOK is 44 there, 39 on the MTR network).
+ const id=code=>airport?Object.entries(d?.stations||{}).find(([k,v])=>v.code===code&&Object.keys(d.airport_fares||{}).some(p=>p.split('|').includes(k)))?.[0]:d?.codes?.[code];
+ const a=id($('fareFrom').value),b=id($('fareTo').value);const prices=airport?d?.airport_fares:d?.fares;const fare=prices?.[a+'|'+b];txt('octopusValue',fmtDollar(fare?.octopus));txt('singleValue',fmtDollar(fare?.single));txt('fareDisclaimer',d?T().estimate+(fare?'':` ${T().noFare}`):T().noFile);renderJourney();renderStation();}
 // Journey planner. Stations join along each line in LINES order; branches and
 // supplement stations are joined explicitly. Ride time comes from the distance
 // between station positions (station-coords.json) at each line's average speed.
