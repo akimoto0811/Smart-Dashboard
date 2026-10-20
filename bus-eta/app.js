@@ -220,7 +220,7 @@ function makeGroups(items){
    destination:metadata?.tc||fallback,
    destination_en:metadata?.en||g.items.find(x=>x.destination_en)?.destination_en||'',
    destination_tc:metadata?.tc||g.items.find(x=>x.destination_tc)?.destination_tc||'',
-   stopCount:new Set(g.items.map(x=>x.operator+'|'+x.stop_id)).size};
+   stopCount:tripStopCount(g.items)};
  }).sort((a,b)=>a.route.localeCompare(b.route,'en',{numeric:true})||(a.direction===b.direction?0:a.direction==='O'?-1:b.direction==='O'?1:a.direction==='I'?-1:1));
 }
 
@@ -248,6 +248,16 @@ function restoreFavs(){
 restoreFavs();
 const banner = msg => {state.notice=msg;const el=$('#notice');el.textContent=msg;el.classList.toggle('hidden',!msg);};
 const line = (title,desc) => `<div class="section-title">${esc(title)}</div>${desc?`<div class="section-sub">${esc(desc)}</div>`:''}`;
+// Special departures (KMB service type 2+) add detour stops; the route view
+// and stop counts follow the regular service unless a special one was picked.
+const regularServices=(items,picked=[])=>{const all=[...new Set(items.map(i=>String(i.service_type||'1')))].sort((a,b)=>a-b);
+ return [...new Set([all.includes('1')?'1':all[0],...picked.map(String).filter(x=>all.includes(x))])].filter(Boolean);};
+// Stops on one regular trip: the longest single operator/direction variant,
+// not the union of KMB and Citybus poles of a joint route.
+function tripStopCount(items){const counts=new Map();
+ for(const op of new Set(items.map(x=>x.operator))){const own=items.filter(x=>x.operator===op),svc=regularServices(own)[0];
+  for(const x of own)if(String(x.service_type||'1')===svc){const k=op+'|'+x.direction;if(!counts.has(k))counts.set(k,new Set());counts.get(k).add(x.stop_id);}}
+ return Math.max(0,...[...counts.values()].map(s=>s.size));}
 const operatorChips = ops => `<span class="operators">${ops.map(x=>`<span class="operator-chip">${esc(names[x]||x)}</span>`).join('')}</span>`;
 function nearbyBoardingItem(g){
  const pos=state.position;
@@ -479,9 +489,9 @@ async function getStopDetails(it){const key=it.operator+'|'+it.stop_id;
  const record={...it,name:String(d.name_tc||d.name_en||'Stop '+it.stop_id),name_en:String(d.name_en||''),name_tc:String(d.name_tc||''),lat,lng};
  saveStopDetail(key,record);return record;})();
  state.stopDetails.set(key,task);task.catch(()=>{if(state.stopDetails.get(key)===task)state.stopDetails.delete(key)});return task;}
-async function officialGroup(g){
+async function officialGroup(g,extraServices=[]){
  const ops=g.operators || [...new Set(g.items.map(i=>i.operator))];
- const jobs=[];for(const op of ops){const candidates=g.items.filter(i=>i.operator===op),services=op==='CTB'?['1']:[...new Set(candidates.map(i=>i.service_type||'1'))].slice(0,4);
+ const jobs=[];for(const op of ops){const candidates=g.items.filter(i=>i.operator===op),services=op==='CTB'?['1']:regularServices(candidates,extraServices.filter(x=>x.operator===op).map(x=>x.service_type));
    for(const service of services)jobs.push({op,service,direction:candidates[0]?.direction||g.direction});}
  const settled=await Promise.all(jobs.map(async job=>{try{return {job,stops:await getOfficialStops(job.op,g.route,job.direction,job.service)}}catch(e){return {job,error:e.message}}}));
  const warnings=settled.filter(z=>z.error).map(z=>z.job.op+': '+z.error),raw=settled.flatMap(z=>z.stops||[]);
@@ -643,7 +653,30 @@ function clusterStops(items,g){
  // operator stop sequence regardless of the user's GPS position. Different
  // operators can use different stop numbering, so never compare their raw seq
  // directly as though both were a single shared sequence.
- return orderJourneyStops(clusters);
+ return mergeUnlinkedNeighbours(orderJourneyStops(clusters));
+}
+// A joint-route stop missing from stop-links.json (e.g. 680 Central Library,
+// KMB and Citybus poles ~165 m apart) is left as two adjacent rows. Merge two
+// neighbouring single-operator rows of different operators when neither pole
+// has an audited link, they share a landmark name and are within 250 m.
+function mergeUnlinkedNeighbours(rows){
+ const single=r=>{const ops=new Set(r.variants.map(v=>v.operator));return ops.size===1?[...ops][0]:null;};
+ const unlinked=r=>r.variants.every(v=>goodPosition(v)&&!state.stopLinkLookup.has(nativeLinkKey(v)));
+ const out=[];
+ for(const row of rows){
+  const prev=out.at(-1),a=prev&&single(prev),b=single(row);
+  if(a&&b&&a!==b&&unlinked(prev)&&unlinked(row)&&
+     prev.variants.every(x=>row.variants.every(y=>commonStopLandmark(x,y)&&distance(x.lat,x.lng,y.lat,y.lng)<=250))){
+   prev.variants.push(...row.variants);
+   const ctb=prev.variants.find(v=>v.operator==='CTB'&&v.name_en);
+   if(ctb){prev.name_en=ctb.name_en;if(ctb.name_tc)prev.name_tc=ctb.name_tc;prev.name=ctb.name_tc||ctb.name||prev.name;}
+   prev.distance=[prev.distance,row.distance].filter(x=>x!==null).reduce((m,x)=>Math.min(m,x),Infinity);if(prev.distance===Infinity)prev.distance=null;
+   prev.farthestDistance=[prev.farthestDistance,row.farthestDistance].filter(x=>x!==null).reduce((m,x)=>Math.max(m,x),-Infinity);if(prev.farthestDistance===-Infinity)prev.farthestDistance=null;
+   continue;
+  }
+  out.push(row);
+ }
+ return out;
 }
 function orderJourneyStops(clusters){
  if(!clusters.length)return clusters;
@@ -743,7 +776,7 @@ async function openGroup(key,nearbyCard=null){
   $('#modalBody').innerHTML='<p class="hint loading">Checking all verified stops from first stop to terminus…</p>';
   await stopLinksReady;
   if(token!==state.dialogToken)return;
-  const data=await officialGroup(group);
+  const data=await officialGroup(group,nearbyCard?.variants||[]);
   if(token!==state.dialogToken)return;
   state.verified=data.stops;state.routeFailures=data.warnings;state.loadingNames=data.missing.length;
   const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;
