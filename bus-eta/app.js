@@ -658,7 +658,8 @@ function clusterStops(items,g){
 // A joint-route stop missing from stop-links.json (e.g. 680 Central Library,
 // KMB and Citybus poles ~165 m apart) is left as two adjacent rows. Merge two
 // neighbouring single-operator rows of different operators when neither pole
-// has an audited link, they share a landmark name and are within 250 m.
+// has an audited link and they share a landmark name within 250 m, or are
+// within 60 m (termini named differently, e.g. "POKFIELD ROAD BUS TERMINUS").
 function mergeUnlinkedNeighbours(rows){
  const single=r=>{const ops=new Set(r.variants.map(v=>v.operator));return ops.size===1?[...ops][0]:null;};
  const unlinked=r=>r.variants.every(v=>goodPosition(v)&&!state.stopLinkLookup.has(nativeLinkKey(v)));
@@ -666,7 +667,7 @@ function mergeUnlinkedNeighbours(rows){
  for(const row of rows){
   const prev=out.at(-1),a=prev&&single(prev),b=single(row);
   if(a&&b&&a!==b&&unlinked(prev)&&unlinked(row)&&
-     prev.variants.every(x=>row.variants.every(y=>commonStopLandmark(x,y)&&distance(x.lat,x.lng,y.lat,y.lng)<=250))){
+     prev.variants.every(x=>row.variants.every(y=>{const d=distance(x.lat,x.lng,y.lat,y.lng);return d<=60||(d<=250&&commonStopLandmark(x,y));}))){
    prev.variants.push(...row.variants);
    const ctb=prev.variants.find(v=>v.operator==='CTB'&&v.name_en);
    if(ctb){prev.name_en=ctb.name_en;if(ctb.name_tc)prev.name_tc=ctb.name_tc;prev.name=ctb.name_tc||ctb.name||prev.name;}
