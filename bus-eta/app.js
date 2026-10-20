@@ -693,7 +693,9 @@ function tdClusters(items,g){
  const rows=new Map(),loose=[];
  for(const it of items){const k=pick.assigned.get(it);
   if(k===undefined){loose.push(it);continue;}
-  if(!rows.has(k)){const [,name_en,name_tc,lat,lng]=pick.trip.stops[k];
+  if(!rows.has(k)){const [,rawEN,rawTC,lat,lng]=pick.trip.stops[k];
+   // TD names read "KMB NAME/<br>Citybus name"; keep the readable last part.
+   const name_en=String(rawEN||'').split(/\/<br>/i).pop().trim(),name_tc=String(rawTC||'').split(/\/<br>/i).pop().trim();
    rows.set(k,{route:g.route,direction:g.direction,destination:g.destination,destination_en:g.destination_en||'',destination_tc:g.destination_tc||g.destination,
     name:name_tc||name_en,name_en,name_tc,lat,lng,seq:k+1,order:k,variants:[]});}
   const row=rows.get(k);if(!row.variants.some(v=>itemID(v)===itemID(it)))row.variants.push(it);
