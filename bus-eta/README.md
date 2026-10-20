@@ -20,6 +20,7 @@ Live: https://akimoto0811.github.io/Smart-Dashboard/bus-eta/
 | `index.html`, `app.js`, `styles.css` | The app. Bump the `?v=` cache-buster in `index.html` when any of them change. |
 | `manifest.webmanifest`, `icons/` | Home-screen name and icons. |
 | `catalogue-compact.json` | Route/stop discovery catalogue (schema 4, ~1.5 MB). Built by `make_catalogue.py`. |
+| `td-routes.json` | Transport Department stop list for every joint KMB/Citybus route, and every route's full fare. Built weekly by `make_td_routes.py` from data.gov.hk; joint-route stop rows follow it. |
 | `stop-links.json` | Audited KMB ↔ Citybus stop pairs for joint routes. Generated offline from Transport Department joint-route stop anchors; the generator script is not in this repository, so keep this file as is. |
 | `make_catalogue.py` | Rebuilds `catalogue-compact.json`. |
 | `build_launcher.py` | Optional Mac Shortcut that opens the dashboard. |
