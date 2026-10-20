@@ -25,7 +25,8 @@ const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
 const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null,
  officialKMB:[],officialKMBLoadedAt:0,officialKMBPending:null,officialKMBError:null,scanStops:[],liveCards:[]};
-// Admin mode: open any page once with ?admin=1 (or ?admin=0 to turn it off).
+// Admin mode: open any page once with ?admin=1 (or ?admin=0 to turn it off),
+// or tap the version line in Settings 7 times (for the Home Screen app).
 // It only hides Diagnostics & data from other people; it is not a security
 // feature, since the site and its data are public.
 const IS_ADMIN=(()=>{const q=new URLSearchParams(location.search).get('admin');
@@ -1308,6 +1309,9 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
 });
 persist('hkbus_demo',false); // Retire any saved demo preference from earlier versions.
 $('#refreshButton').addEventListener('click',()=>{state.etas.clear();nearbyETAState.cache.clear();state.routeStops.clear();state.routeOrientation.clear();state.routeOrientationPending.clear();persist(ROUTE_DIRECTION_STORAGE,{});state.groups=makeGroups(state.catalogue);banner('Caches refreshed.');render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&state.position){startNearbyETAScan(true);void ensureOfficialKMBStops();}});
+// Seven quick taps on the version line toggle admin mode; the setting is shared with MTR ETA.
+let adminTaps=[];document.addEventListener('click',e=>{if(!e.target.closest('.app-version'))return;const now=Date.now();adminTaps=[...adminTaps.filter(t=>now-t<3000),now];if(adminTaps.length<7)return;adminTaps=[];
+ try{if(IS_ADMIN)localStorage.removeItem('dashboard_admin');else localStorage.setItem('dashboard_admin','1');}catch{}location.replace(location.pathname);});
 $('#closeModal').addEventListener('click',closeDialog);
 $('#modalScrim').addEventListener('click',e=>{if(e.target.id==='modalScrim')closeDialog();});
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
