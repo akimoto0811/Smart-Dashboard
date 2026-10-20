@@ -1,11 +1,67 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1120"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="HK Dashboard">
+<link rel="apple-touch-icon" href="bus-eta/icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="bus-eta/icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest?v=1.0.0">
 <title>Smart Dashboard</title>
-<meta http-equiv="refresh" content="0; url=bus-eta/">
-<link rel="canonical" href="bus-eta/">
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b1120;color:#f0f4fc;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}a{color:#6cdea4}</style>
+<style>
+:root{color-scheme:dark;--bg:#0b1120;--panel:#131d30;--line:#293650;--fg:#f0f4fc;--muted:#93a0b9;--mint:#6cdea4}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;background:radial-gradient(ellipse at 50% -380px,#1b3149 0,var(--bg) 62%);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang TC",Segoe UI,sans-serif;-webkit-font-smoothing:antialiased}
+.shell{width:min(100%,560px);margin:auto;padding:calc(37px + env(safe-area-inset-top)) 19px calc(30px + env(safe-area-inset-bottom))}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:28px}
+.eyebrow{color:var(--muted);font-size:11px;letter-spacing:1.4px;font-weight:700;margin-bottom:5px}
+h1{font-size:34px;letter-spacing:-1.4px;margin:0;line-height:1.12;font-weight:780}
+.sub{color:var(--muted);font-size:13px;margin-top:7px}
+.lang{display:flex;border:1px solid var(--line);border-radius:13px;overflow:hidden;flex-shrink:0}
+.lang button{border:0;background:var(--panel);color:var(--muted);font:inherit;font-size:12px;font-weight:700;padding:9px 11px;cursor:pointer}
+.lang button.on{background:#152d30;color:var(--mint)}
+.tiles{display:grid;gap:14px}
+.tile{display:flex;align-items:center;gap:16px;padding:20px;border:1px solid var(--line);background:var(--panel);border-radius:24px;color:var(--fg);text-decoration:none;transition:transform .12s}
+.tile:active{transform:scale(.98)}
+.icon{width:62px;height:62px;border-radius:19px;display:grid;place-items:center;flex-shrink:0}
+.icon svg{width:34px;height:34px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.bus .icon{background:#183d34;color:var(--mint)}
+.mtr .icon{background:#3a1f26;color:#ff8f8f}
+.text{flex:1;min-width:0}
+.name{font-size:21px;font-weight:780;letter-spacing:-.5px}
+.desc{color:var(--muted);font-size:12.5px;margin-top:5px;line-height:1.45}
+.chev{color:var(--muted);font-size:26px;line-height:1}
+.foot{color:var(--muted);font-size:11px;line-height:1.55;margin-top:22px;text-align:center}
+@media(min-width:650px){.shell{padding-top:60px}h1{font-size:42px}}
+</style>
 </head>
-<body><p>Opening the <a href="bus-eta/">HK Bus ETA dashboard</a>…</p></body>
+<body>
+<main class="shell">
+ <header class="top">
+  <div><div class="eyebrow" id="today">HONG KONG</div><h1 id="title">Smart Dashboard</h1><div class="sub" id="sub">Live arrivals for getting around Hong Kong</div></div>
+  <div class="lang" role="group" aria-label="Language"><button data-lang="en">EN</button><button data-lang="tc">中文</button></div>
+ </header>
+ <nav class="tiles">
+  <a class="tile bus" href="bus-eta/"><span class="icon"><svg viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="21" rx="5"/><path d="M6 15h20M10 25v3m12-3v3M11 20h1m8 0h1M10 9h12"/></svg></span><span class="text"><div class="name" id="busName">Bus ETA</div><div class="desc" id="busDesc">KMB, Citybus and Long Win · nearby stops, routes and fares</div></span><span class="chev">›</span></a>
+  <a class="tile mtr" href="mtr-eta/"><span class="icon"><svg viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="23" rx="7"/><path d="M9 14h14M11 9h10M11 26l-3 4m13-4 3 4M12 20h2m4 0h2"/></svg></span><span class="text"><div class="name" id="mtrName">MTR ETA</div><div class="desc" id="mtrDesc">Next trains by line and station · fares and accessibility</div></span><span class="chev">›</span></a>
+ </nav>
+ <p class="foot" id="foot">Add this page to your Home Screen to open either dashboard from one icon.</p>
+</main>
+<script>
+const TEXT={
+ en:{title:'Smart Dashboard',sub:'Live arrivals for getting around Hong Kong',busName:'Bus ETA',busDesc:'KMB, Citybus and Long Win · nearby stops, routes and fares',mtrName:'MTR ETA',mtrDesc:'Next trains by line and station · fares and accessibility',foot:'Add this page to your Home Screen to open either dashboard from one icon.',place:'HONG KONG'},
+ tc:{title:'智能交通資訊',sub:'香港巴士及港鐵即時到站資訊',busName:'巴士到站時間',busDesc:'九巴、城巴及龍運 · 附近車站、路線及車費',mtrName:'港鐵到站時間',mtrDesc:'按路綫及車站查看下一班列車 · 車費及無障礙設施',foot:'將此頁加至主畫面，即可從同一圖示開啟兩個資訊板。',place:'香港'}};
+const read=k=>{try{return JSON.parse(localStorage.getItem(k))}catch{return null}};
+// Start in the language last chosen here, else the bus app's choice.
+let lang=read('dashboard_lang')||read('hkbus_lang')||(navigator.language.startsWith('zh')?'tc':'en');
+if(!TEXT[lang])lang='en';
+function render(){
+ const t=TEXT[lang];document.documentElement.lang=lang==='tc'?'zh-Hant-HK':'en';document.title=t.title;
+ for(const id of ['title','sub','busName','busDesc','mtrName','mtrDesc','foot'])document.getElementById(id).textContent=t[id];
+ const date=new Intl.DateTimeFormat(lang==='tc'?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',day:'numeric',month:lang==='tc'?'numeric':'long',year:lang==='tc'?'numeric':undefined,weekday:'short'}).format(new Date());
+ document.getElementById('today').textContent=(t.place+' · '+date).toUpperCase();
+ document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
+}
+document.querySelectorAll('[data-lang]').forEach(b=>b.addEventListener('click',()=>{lang=b.dataset.lang;try{localStorage.setItem('dashboard_lang',JSON.stringify(lang))}catch{}render();}));
+render();
+</script>
+</body>
 </html>

@@ -96,7 +96,7 @@ const UI_ZH = {
  'Export':'匯出','Import':'匯入','Routes near you':'附近路線',
  'No routes found':'找不到路線', 'Bus stop':'巴士站','ETA ›':'到站 ›',
  'Remove all saved favourites on this browser?':'確定要刪除此瀏覽器所有收藏嗎？',
- 'Refresh arrivals':'更新到站資料','Close':'關閉'
+ 'Refresh arrivals':'更新到站資料','Close':'關閉','Dashboard':'主頁'
 };
 const UI_EN_FROM_ZH=Object.fromEntries(Object.entries(UI_ZH).map(([en,zh])=>[zh,en]));
 function translatePhrase(s){
