@@ -7,3 +7,5 @@
 | [`mtr-eta/`](mtr-eta/) | MTR next-train dashboard with fares and accessibility | https://akimoto0811.github.io/Smart-Dashboard/mtr-eta/ |
 
 The site root is a menu that opens either dashboard; each app has a "‹ Dashboard" link back to it. See [`bus-eta/README.md`](bus-eta/README.md) for deployment and data details.
+
+Each page checks itself on open and when you return to it: if the `?v=` cache-busters in the live `index.html` differ from the ones loaded, it reloads the new version. So always bump `?v=` when changing an app (on the menu page, bump `manifest.webmanifest?v=`).
