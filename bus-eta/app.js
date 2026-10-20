@@ -25,6 +25,8 @@ const START_PAGES=['nearby','favourites','browse'];
 const savedStartPage=storage('hkbus_start_page','nearby');
 const nearbyETAState={cache:new Map(),inFlight:new Map(),generation:0,progress:null,updateTimer:null,
  officialKMB:[],officialKMBLoadedAt:0,officialKMBPending:null,officialKMBError:null,scanStops:[],liveCards:[]};
+// The version is the cache-buster on app.js in index.html, so it can't drift.
+const APP_VERSION=new URL(document.querySelector('script[src*="app.js"]')?.src||location.href).searchParams.get('v')||'dev';
 const state = {view:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',startPage:START_PAGES.includes(savedStartPage)?savedStartPage:'nearby',demo:false,catalogue:[],groups:[],catalogueDate:'',operator:'ALL',query:'',radius:450,position:null,nearby:[],favourites:storage('hkbus_favourites_v2',[]),currentGroup:null,currentStop:null,verified:[],routeFailures:[],nearbyFocus:null,routeRetry:null,loadingNames:0,busy:false,dialogToken:0,etas:new Map(),routeStops:new Map(),stopDetails:new Map(),routeOrientation:new Map(),routeOrientationPending:new Map(),notice:'',forceRefresh:false,lang:storage('hkbus_lang','en')==='tc'?'tc':'en',expandedStopKey:null,etaRequests:new Map(),locationRequested:false,tdRoutes:new Map(),tdFares:new Map(),stopFares:null,stopLinkLookup:new Map(),stopLinkStatus:{loaded:false,error:'Mapping not loaded'}};
 // UI translations only. Route numbers/IDs and stored JSON keys are never translated.
 const UI_ZH = {
@@ -374,7 +376,8 @@ function settings(){return `${line('Preferences','Choose your language and start
  <div class="card"><div class="card-title">Favourites backup</div><p class="small-note">Favourites are stored in this browser. Export a backup before clearing Safari data or changing devices.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">${fmt(state.favourites.length)} saved</p></div>
  <details class="card diagnostics-card"><summary>Diagnostics &amp; data</summary>
  <div class="diag-section"><div class="card-title">Diagnostics</div><p class="small-note">Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.</p><div class="buttons"><button class="ghost-button" data-action="clearETAs">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div> <div class="diag-section"><div class="card-title">Joint-route stop mapping</div><p class="small-note">${state.stopLinkStatus.loaded?(state.lang==='tc'?`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} 條聯營路線 · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} 組跨公司巴士站配對 · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} 條未能確認`:`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} joint routes · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} operator stop pairs · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} unresolved`):(state.lang==='tc'?'尚未載入配對資料 — 使用保守配對模式 (':'Not loaded — using conservative matching (')+esc(state.stopLinkStatus.error||'Check stop-links.json')+')'}</p></div>
- <div class="diag-section"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:16px">${esc(state.catalogueDate||'Not loaded')}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:16px">${esc(hkTime())}</div></div></div><p class="small-note">Stop data is used for discovery. Official operator lists verify boarding stops.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div></details>`;}
+ <div class="diag-section"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:16px">${esc(state.catalogueDate||'Not loaded')}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:16px">${esc(hkTime())}</div></div></div><p class="small-note">Stop data is used for discovery. Official operator lists verify boarding stops.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div></details>
+ <p class="small-note app-version">${state.lang==='tc'?'版本':'Version'} ${esc(APP_VERSION)}</p>`;}
 function render(){const titles={favourites:['Favourites','Your frequently used journeys'],nearby:['Nearby Stops',''],browse:['Find a Route','One entry per route and direction'],settings:['Settings','Catalogue, data and permissions']};
  const [title,desc]=titles[state.view];$('#pageTitle').textContent=title;$('#pageCaption').textContent=desc;$('#pageCaption').classList.toggle('hidden',!desc);
  $('#todayLabel').textContent='HONG KONG · '+hkDate().toUpperCase()+' · '+hkTime();
@@ -396,8 +399,14 @@ function setView(view){state.view=view;banner('');render();scrollTo({top:0,behav
 async function requestJSON(url,limit=13000){const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),limit);try{const res=await fetch(url,{cache:'no-store',signal:ctrl.signal});if(!res.ok)throw Error('API HTTP '+res.status);return await res.json();}catch(err){if(err.name==='AbortError')throw Error('API request timed out');throw err;}finally{clearTimeout(timeout);}}
 // The operator's current route-stop list is authoritative. Catalogue mappings are NOT.
 function officialListURL(op,route,direction,service){const bound=direction==='I'?'inbound':'outbound';return op==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/${encodeURIComponent(route)}/${bound}`:`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${encodeURIComponent(route)}/${bound}/${encodeURIComponent(service||'1')}`;}
-async function getOfficialStops(op,route,direction,service){const key=[op,route,direction,service].join('|'), cached=state.routeStops.get(key);
- if(cached && Date.now()-cached.at<3600000)return cached.value;
+// Requests in flight are shared, so a prefetch and the route view never fetch twice.
+const routeStopsPending=new Map();
+function getOfficialStops(op,route,direction,service){const key=[op,route,direction,service].join('|'), cached=state.routeStops.get(key);
+ if(cached && Date.now()-cached.at<3600000)return Promise.resolve(cached.value);
+ if(!routeStopsPending.has(key)){const task=fetchOfficialStops(op,route,direction,service,key);routeStopsPending.set(key,task);task.finally(()=>routeStopsPending.delete(key)).catch(()=>{});}
+ return routeStopsPending.get(key);
+}
+async function fetchOfficialStops(op,route,direction,service,key){
  const doc=await requestJSON(officialListURL(op,route,direction,service));
  if(!Array.isArray(doc.data))throw Error(op+' returned invalid route-stop JSON');
  const list=doc.data.filter(s=>clean(s.route)===route && (!s.dir||s.dir===direction) && (op==='CTB'?/^\d{6}$/.test(s.stop||''):/^[0-9A-F]{16}$/i.test(s.stop||''))).map(s=>({operator:op,route,direction,service_type:service,stop_id:clean(s.stop),seq:Number(s.seq)||9999})).sort((a,b)=>a.seq-b.seq);
@@ -422,6 +431,12 @@ function routeDest(op,data,dir){
  if(op==='CTB'&&dir==='I')return {en:data.orig_en||'',tc:data.orig_tc||''};
  return {en:data.dest_en||'',tc:data.dest_tc||''};
 }
+let catalogueStopIndex=null,catalogueStopSource=null;
+function catalogueStop(it){
+ if(catalogueStopSource!==state.catalogue){catalogueStopSource=state.catalogue;catalogueStopIndex=new Map();
+  for(const x of state.catalogue)if(goodPosition(x))catalogueStopIndex.set(x.operator+'|'+x.stop_id,x);}
+ const hit=catalogueStopIndex.get(it.operator+'|'+it.stop_id);return hit?{...it,lat:hit.lat,lng:hit.lng}:null;
+}
 async function ensurePhysicalRoute(route){
  if(!route||!state.catalogue.some(x=>x.route===route))return null;
  if(state.routeOrientation.has(route))return state.routeOrientation.get(route);
@@ -432,20 +447,27 @@ async function ensurePhysicalRoute(route){
   const main=ops.has('KMB')?'KMB':ops.has('LWB')?'LWB':'CTB';
   const service=entries.find(x=>x.operator===main)?.service_type||'1';
   const routeInfo=async(op,d)=>{try{const res=await requestJSON(officialRouteURL(op,route,d,service),10000);return res.data||null}catch{return null}};
+  // Fetch destinations and the route-stop lists together; the lists are
+  // cached, so the route view that follows needs no further round trip.
+  const joint=ops.has('CTB')&&main!=='CTB';
+  const lists=joint?Promise.all([getOfficialStops(main,route,'O',service),getOfficialStops('CTB',route,'O','1'),getOfficialStops('CTB',route,'I','1'),
+   getOfficialStops(main,route,'I',service).catch(()=>null)]):null;
+  lists?.catch(()=>{});
+  if(!joint)for(const d of ['O','I'])getOfficialStops(main,route,d,service).catch(()=>{});
   const [outInfo,inInfo,ctbInfo]=await Promise.all([
    main==='CTB'?routeInfo('CTB','O'):routeInfo(main,'O'),
    main==='CTB'?routeInfo('CTB','I'):routeInfo(main,'I'),
-   ops.has('CTB')&&main!=='CTB'?routeInfo('CTB','O'):Promise.resolve(null)
+   joint?routeInfo('CTB','O'):Promise.resolve(null)
   ]);
   const mapping={};for(const op of ops)mapping[op]={O:'O',I:'I'};
   let separated=false;
   if(ops.has('CTB')&&main!=='CTB'){
    try{
-    const [mainStops,ctbOStops,ctbIStops]=await Promise.all([
-     getOfficialStops(main,route,'O',service),getOfficialStops('CTB',route,'O','1'),getOfficialStops('CTB',route,'I','1')]);
+    const [mainStops,ctbOStops,ctbIStops]=await lists;
     if(!mainStops.length||!ctbOStops.length||!ctbIStops.length)throw Error('Route endpoints not supplied');
-    const [firstMain,firstCTBO,firstCTBI]=await Promise.all([
-     getStopDetails(mainStops[0]),getStopDetails(ctbOStops[0]),getStopDetails(ctbIStops[0])]);
+    // Terminus positions come from the catalogue when it has them, saving a
+    // stop-details request per operator.
+    const [firstMain,firstCTBO,firstCTBI]=await Promise.all([mainStops[0],ctbOStops[0],ctbIStops[0]].map(it=>catalogueStop(it)||getStopDetails(it)));
     if(!goodPosition(firstMain)||!goodPosition(firstCTBO)||!goodPosition(firstCTBI))throw Error('No verified route terminal coordinates');
     const oDist=distance(firstMain.lat,firstMain.lng,firstCTBO.lat,firstCTBO.lng);
     const iDist=distance(firstMain.lat,firstMain.lng,firstCTBI.lat,firstCTBI.lng);
