@@ -32,6 +32,16 @@ h1{font-size:34px;letter-spacing:-1.4px;margin:0;line-height:1.12;font-weight:78
 .foot{color:var(--muted);font-size:11px;line-height:1.55;margin-top:22px;text-align:center}
 @media(min-width:650px){.shell{padding-top:60px}h1{font-size:42px}}
 </style>
+<script>
+// GitHub Pages lets Safari keep this page for up to 10 minutes, so after a
+// release it could show the old version. Fetch the page fresh on open and when
+// returning to the app; if its ?v= cache-busters differ, reload the new one.
+(()=>{const marks=doc=>[...doc.querySelectorAll('link[href*="?v="],script[src*="?v="]')].map(e=>e.getAttribute('href')||e.getAttribute('src')).join();
+ async function check(){try{const r=await fetch(location.pathname,{cache:'no-store'});if(!r.ok)return;const fresh=new DOMParser().parseFromString(await r.text(),'text/html'),theirs=marks(fresh);
+  if(!theirs||theirs===marks(document))return;const key='reloaded:'+location.pathname+theirs;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');
+  location.replace(location.pathname+'?v='+encodeURIComponent(theirs.match(/\?v=([\w.-]+)/)[1]));}catch{}}
+ addEventListener('DOMContentLoaded',check);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
+</script>
 </head>
 <body>
 <main class="shell">
