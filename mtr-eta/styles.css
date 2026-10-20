@@ -41,3 +41,51 @@ h1{font-size:34px;letter-spacing:-1.4px;line-height:1.12;font-weight:780}h1 span
 .section-foot{font-size:11px;margin-top:10px}.actionrow{gap:9px;margin-top:12px}.actionbtn{min-height:42px;padding:10px;font-size:13px}
 .favourite-card{padding:13px 14px;border-radius:16px;background:var(--panel);border-color:var(--line)}.favourite-card strong{font-size:14px}.favourite-card small{font-size:11px;color:var(--muted)}
 .subcard{padding:13px;border-radius:14px}.subcard h3{font-size:13px}.subcard p,.data-status{font-size:11px}.listline{padding:12px 0;font-size:13px}.infoicon{width:38px;height:38px;font-size:17px}
+
+/* One-screen layout: Trains and Fares fit an iPhone screen without scrolling. */
+.app{padding-top:max(16px,env(safe-area-inset-top));padding-bottom:calc(84px + var(--safe))}
+.home-link{height:32px;padding:0 12px 0 8px;font-size:12px;border-radius:11px}
+.home-link svg{width:15px;height:15px}
+.titleline{margin:4px 0 10px}
+h1{font-size:28px}
+.subtitle,.top-icon{display:none}
+.status{margin:0 0 10px;min-height:0}
+.demo-badge{padding:4px 8px}
+
+.searchcard{padding:12px 14px}
+#selectTitle,.route-info{display:none}
+.field-label{font-size:11px;margin-bottom:4px}
+select{height:40px;padding-top:8px;padding-bottom:8px;border-radius:13px}
+.selectwrap:after{top:8px}
+
+.section{margin-top:14px}
+.section-head{margin-bottom:8px}
+.section h2{font-size:16px}
+.refresh-btn{padding:6px 10px}
+.directionbar{margin-bottom:8px}
+.direction{min-height:0;padding:7px 11px;flex-direction:row;align-items:baseline;justify-content:flex-start;gap:6px}
+.eta-main{padding:11px 14px 12px}
+.eta-content{margin-top:6px}
+.eta-content>div{display:flex;align-items:center;gap:14px}
+.eta-number{font-size:40px}
+.eta-destination{margin-top:0;font-size:15px}
+.train-graphic{display:none}
+.nextlist{margin-top:8px}
+.nextbox{padding:7px 6px}
+#etaFoot{display:none}
+.actionrow{margin-top:10px}
+.actionbtn{min-height:38px;padding:8px 10px}
+
+#view-fares .card{padding:14px}
+#faresHeader,#fareDesc{display:none}
+#faresTitle{font-size:18px}
+#view-fares .selectwrap{margin-bottom:0}
+#view-fares .formrow{margin-top:10px}
+#view-fares div[style*="margin-top:14px"]{margin:10px 0 0!important}
+#view-fares .subcard{margin-top:10px;padding:2px 13px}
+#view-fares .listline{padding:10px 0}
+#fareDisclaimer{margin-top:8px}
+#fareSource{margin-top:8px!important}
+
+.bottom{padding-top:8px;padding-bottom:calc(8px + var(--safe))}
+.navitem{gap:4px}
