@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """Build td-routes.json: the Transport Department's official stop list for
-every joint KMB/Citybus route, and every bus route's full fare (standard
-library only).
+every joint KMB/Citybus route, and every bus route's full fare; and
+td-fares.json: the fare from each stop of every bus route (standard library only).
 
 Source: data.gov.hk "Routes and fares of public transport" (JSON_BUS.json).
 A joint route appears there once, with one entry per physical stop, so the app
-uses it to decide which KMB and Citybus poles are the same stop.
+uses it to decide which KMB and Citybus poles are the same stop. Section fares
+come from FARE_BUS.xml, keyed by route, direction and boarding stop.
 
   python3 make_td_routes.py           # download and rebuild td-routes.json
   python3 make_td_routes.py --probe   # print the source layout only
 """
 import json, pathlib, sys, urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 URL='https://static.data.gov.hk/td/routes-fares-geojson/JSON_BUS.json'
 OUTPUT=pathlib.Path(__file__).resolve().parent/'td-routes.json'
+FARE_URL='https://static.data.gov.hk/td/routes-fares-xml/FARE_BUS.xml'
+FARES_OUTPUT=pathlib.Path(__file__).resolve().parent/'td-fares.json'
 
 def fetch():
  req=urllib.request.Request(URL,headers={'User-Agent':'HKBusETA-Dashboard/1.0'})
@@ -61,7 +65,45 @@ def build(doc):
  for r in ['680','110']:
   for t in routes.get(r,[]):print(r,t['mode'],t['special'],t['seq'],t['from_en'],'->',t['to_en'],len(t['stops']),'stops')
 
+def build_stop_fares(doc):
+ # Fare when boarding at a stop = the highest section fare from that stop
+ # (to the far end of the route), as printed on the stop's fare table.
+ board={}
+ req=urllib.request.Request(FARE_URL,headers={'User-Agent':'HKBusETA-Dashboard/1.0'})
+ with urllib.request.urlopen(req,timeout=300) as r:
+  for _,el in ET.iterparse(r):
+   if el.tag!='FARE':continue
+   try:
+    key=(int(el.findtext('ROUTE_ID')),int(el.findtext('ROUTE_SEQ')),int(el.findtext('ON_SEQ')));price=float(el.findtext('PRICE'))
+    if price>board.get(key,0):board[key]=price
+   except (TypeError,ValueError):pass
+   el.clear()
+ print('Section fares for',len(board),'boarding stops')
+ trips={}
+ for f in doc.get('features',[]):
+  p=f.get('properties') or {}
+  route=str(p.get('routeNameE') or '').strip().upper()
+  try:lng,lat=f['geometry']['coordinates'][:2];rid,rseq,sseq=int(p['routeId']),int(p['routeSeq']),int(p.get('stopSeq') or 0)
+  except Exception:continue
+  if not route:continue
+  t=trips.setdefault((rid,rseq),{'route':route,'company':str(p.get('companyCode') or ''),'seq':rseq,
+   'to_en':p.get('locEndNameE') or '','regular':p.get('serviceMode')=='R' and not p.get('specialType'),'stops':[]})
+  fare=board.get((rid,rseq,sseq))
+  t['stops'].append((sseq,[round(lat,5),round(lng,5),fare]))
+ routes={}
+ for t in trips.values():
+  stops=[s for _,s in sorted(t['stops'],key=lambda x:x[0])]
+  if len(stops)<2 or not any(s[2] for s in stops):continue
+  t['stops']=stops;routes.setdefault(t.pop('route'),[]).append(t)
+ for v in routes.values():v.sort(key=lambda t:(not t['regular'],t['seq']))
+ if len(routes)<300:raise SystemExit(f'Only {len(routes)} routes with section fares; refusing to write')
+ out={'schema_version':1,'generated_utc':datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),'source':FARE_URL,'routes':routes}
+ FARES_OUTPUT.write_text(json.dumps(out,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
+ print(f'Saved {FARES_OUTPUT.name}: {len(routes)} routes, {FARES_OUTPUT.stat().st_size/1e6:.2f} MB')
+ for r in ['680','1A','110']:
+  for t in routes.get(r,[])[:2]:print(r,t['company'],t['seq'],t['to_en'],[s[2] for s in t['stops']])
+
 if __name__=='__main__':
  doc=fetch()
  if '--probe' in sys.argv:probe(doc)
- else:build(doc)
+ else:build(doc);build_stop_fares(doc)
