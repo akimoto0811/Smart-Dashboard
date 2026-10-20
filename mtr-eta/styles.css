@@ -89,3 +89,27 @@ select{height:40px;padding-top:8px;padding-bottom:8px;border-radius:13px}
 
 .bottom{padding-top:8px;padding-bottom:calc(8px + var(--safe))}
 .navitem{gap:4px}
+
+/* Locate me and the journey planner. */
+.locate-row{display:flex;align-items:center;gap:10px;margin-top:10px;min-height:32px}
+.locate-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid #33415e;background:#1a2940;color:var(--fg);border-radius:11px;padding:6px 11px;font-size:12px;font-weight:700;flex-shrink:0}
+.locate-btn svg{width:15px;height:15px;fill:none;stroke:var(--mint);stroke-width:2;stroke-linecap:round}
+.locate-note{color:var(--muted);font-size:11px;line-height:1.35;min-width:0}
+#view-fares .formrow{position:relative;column-gap:30px}
+.swap-btn{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);width:26px;height:28px;border:0;background:none;color:var(--mint);font-size:17px;font-weight:700;padding:0}
+.journey{margin-top:10px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:11px 13px}
+.journey:empty{display:none}
+.journey-sum{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.journey-sum strong{font-size:22px;font-weight:780;color:var(--mint);letter-spacing:-.5px}
+.journey-sum strong small{font-size:12px;color:var(--muted);font-weight:650;letter-spacing:0}
+.journey-sum span{font-size:12px;color:var(--muted);font-weight:650}
+.journey-leg{display:flex;gap:10px;align-items:stretch}
+.leg-bar{width:4px;border-radius:4px;background:var(--leg);flex-shrink:0}
+.journey-leg strong{display:block;font-size:13px;font-weight:720}
+.journey-leg strong small{color:var(--muted);font-weight:500;font-size:11px}
+.journey-leg>div>small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.journey-change{font-size:11px;color:#c9d4e3;margin:6px 0 6px 14px;font-weight:650}
+.journey-note{font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.45}
+.journey .journey-note{margin:0}
+#view-fares .subcard{margin-top:8px}
+#view-fares .listline{padding:7px 0}

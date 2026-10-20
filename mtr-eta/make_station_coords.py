@@ -4,15 +4,17 @@ The official MTR open data has no coordinates, so positions come from
 OpenStreetMap. Stations are matched by English or Chinese name; Light Rail
 stops are left out. Run by .github/workflows/mtr-data.yml.
 """
-import json, math, re, sys, urllib.parse, urllib.request
+import json, math, re, sys, time, urllib.parse, urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).parent
-QUERY = """[out:json][timeout:90];
-area["ISO3166-1"="HK"][admin_level=2]->.hk;
-(node["railway"="station"](area.hk);way["railway"="station"](area.hk);relation["railway"="station"](area.hk);
- node["public_transport"="station"](area.hk);way["public_transport"="station"](area.hk););
+BOX = '(22.15,113.82,22.57,114.45)'  # Hong Kong
+QUERY = f"""[out:json][timeout:90];
+(node["railway"="station"]{BOX};way["railway"="station"]{BOX};relation["railway"="station"]{BOX};
+ node["public_transport"="station"]{BOX};way["public_transport"="station"]{BOX};);
 out center tags;"""
+SERVERS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter',
+           'https://overpass.private.coffee/api/interpreter']
 
 def norm(s):
     s = (s or '').lower().replace('station', '').replace('站', '')
@@ -25,10 +27,19 @@ def km(a, b):
 stations = re.findall(r"\['([A-Z]{3})','([^']+)','([^']+)'\]", (HERE / 'app.js').read_text())
 stations = list({code: (code, en, tc) for code, en, tc in stations}.values())
 
-req = urllib.request.Request('https://overpass-api.de/api/interpreter',
-                             data=urllib.parse.urlencode({'data': QUERY}).encode(),
-                             headers={'User-Agent': 'Smart-Dashboard MTR ETA (github.com/akimoto0811/Smart-Dashboard)'})
-elements = json.load(urllib.request.urlopen(req, timeout=180))['elements']
+def fetch():
+    for attempt in range(3):
+        for url in SERVERS:
+            try:
+                req = urllib.request.Request(url, data=urllib.parse.urlencode({'data': QUERY}).encode(),
+                                             headers={'User-Agent': 'Smart-Dashboard MTR ETA (github.com/akimoto0811/Smart-Dashboard)'})
+                return json.load(urllib.request.urlopen(req, timeout=180))['elements']
+            except Exception as e:
+                print('Overpass', url, 'failed:', e)
+        time.sleep(20)
+    sys.exit('No Overpass server answered')
+
+elements = fetch()
 print(len(elements), 'OpenStreetMap stations')
 
 def light_rail(t):
