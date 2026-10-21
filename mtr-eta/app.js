@@ -32,7 +32,9 @@ addStations();
 const prefKey='mtr_eta_v1_prefs';
 function load(){try{const p=JSON.parse(localStorage.getItem(prefKey)||'{}');return p&&typeof p==='object'?p:{}}catch{return {}}}
 const prev=load();
-const state={lang:['en','tc'].includes(prev.lang)?prev.lang:'en',start:['eta','favourites'].includes(prev.start)?prev.start:'eta',favourites:Array.isArray(prev.favourites)?prev.favourites:[],line:LINES[prev.line]?prev.line:'ISL',station:prev.station||'ADM',dir:prev.dir==='DOWN'?'DOWN':'UP',view:['eta','favourites'].includes(prev.start)?prev.start:'eta',api:null,apiKey:'',error:null,loading:false,request:0,receivedAt:0,stamp:0,official:null,dataError:null};
+// The language chosen in any of the dashboard apps or the menu is shared.
+const sharedLang=(()=>{try{return JSON.parse(localStorage.getItem('dashboard_lang'))}catch{return null}})();
+const state={lang:['en','tc'].includes(sharedLang)?sharedLang:['en','tc'].includes(prev.lang)?prev.lang:'en',start:['eta','favourites'].includes(prev.start)?prev.start:'eta',favourites:Array.isArray(prev.favourites)?prev.favourites:[],line:LINES[prev.line]?prev.line:'ISL',station:prev.station||'ADM',dir:prev.dir==='DOWN'?'DOWN':'UP',view:['eta','favourites'].includes(prev.start)?prev.start:'eta',api:null,apiKey:'',error:null,loading:false,request:0,receivedAt:0,stamp:0,official:null,dataError:null};
 if(!D(state.line).some(s=>s[0]===state.station))state.station=D(state.line)[0][0];
 const T=()=>OPTIONS[state.lang];const loc=s=>s?.[state.lang==='tc'?2:1]||s?.[1]||String(s?.[0]||'');
 const name=code=>loc(stationByCode.get(code))||T().unknown;
@@ -173,7 +175,7 @@ function install(){translate();navigate(state.view);
  $('favouriteToggle').onclick=()=>{const key=state.line+'|'+state.station;const i=state.favourites.indexOf(key);if(i>=0)state.favourites.splice(i,1);else state.favourites.push(key);persist();renderETA();renderFav()};
  $('stationDetailsBtn').onclick=()=>{$('fareFromLine').value=state.line;fillStations('From',state.station);state.infoSide='from';$('stationInfo').open=true;renderFare();navigate('fares');};
  document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>navigate(b.dataset.view));
- document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;persist();translate();refresh(true)});
+ document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;try{localStorage.setItem('dashboard_lang',JSON.stringify(state.lang))}catch{}persist();translate();refresh(true)});
  document.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>{state.start=b.dataset.start;persist();translate()});
  for(const id of ['fareFrom','fareTo','fareService'])$(id).addEventListener('change',renderFare);
  for(const side of ['From','To'])$('fare'+side+'Line').addEventListener('change',()=>{fillStations(side,$('fare'+side).value);renderFare();});
