@@ -1,0 +1,31 @@
+name: Build tram and ferry data
+
+on:
+  schedule:
+    - cron: '40 20 * * 0'   # Mondays 04:40 Hong Kong time
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - tools/make_tram_ferry.py
+      - .github/workflows/tram-ferry-data.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Build tram-data.json and ferry-data.json from official open data
+        run: python3 tools/make_tram_ferry.py
+      - name: Commit updated data
+        run: |
+          if git diff --quiet -- tram-eta/tram-data.json ferry-eta/ferry-data.json; then echo "Unchanged"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tram-eta/tram-data.json ferry-eta/ferry-data.json
+          git commit -m "Update tram and ferry data"
+          git push
