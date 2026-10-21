@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1120">
+<title>Tram ETA · Hong Kong Tramways</title>
+<link rel="apple-touch-icon" href="../bus-eta/icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="../bus-eta/icons/icon-192.png">
+<link rel="stylesheet" href="../shared/transit.css?v=1.0.0">
+<script>
+// GitHub Pages lets Safari keep this page for up to 10 minutes, so after a
+// release it could show the old version. Fetch the page fresh on open and when
+// returning to the app; if its ?v= cache-busters differ, reload the new one.
+(()=>{const marks=doc=>[...doc.querySelectorAll('link[href*="?v="],script[src*="?v="]')].map(e=>e.getAttribute('href')||e.getAttribute('src')).join();
+ async function check(){try{const r=await fetch(location.pathname,{cache:'no-store'});if(!r.ok)return;const fresh=new DOMParser().parseFromString(await r.text(),'text/html'),theirs=marks(fresh);
+  if(!theirs||theirs===marks(document))return;const key='reloaded:'+location.pathname+theirs;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');
+  location.replace(location.pathname+'?v='+encodeURIComponent(theirs.match(/\?v=([\w.-]+)/)[1]));}catch{}}
+ addEventListener('DOMContentLoaded',check);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
+</script>
+</head>
+<body>
+<main class="app">
+ <a class="home-link" href="../index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span id="homeLabel">Dashboard</span></a>
+ <div class="titleline"><div class="eyebrow" id="eyebrow">HONG KONG · SMART DASHBOARD</div><h1 id="heading">Tram ETA</h1></div>
+ <div class="status"><span class="badge" id="badge">ROUTES &amp; FARES</span><span class="status-note" id="statusNote">Loading tram data…</span></div>
+
+ <section id="view-journey">
+  <div class="card">
+   <div class="gridfields">
+    <div><label class="field-label" for="fromSelect" id="fromLabel">From</label><div class="selectwrap"><select id="fromSelect"></select></div></div>
+    <div><label class="field-label" for="toSelect" id="toLabel">To</label><div class="selectwrap"><select id="toSelect"></select></div></div>
+   </div>
+   <div class="locate-row"><button class="locate-btn" id="locateBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="7.5"/></svg><span id="locateLabel">Locate me</span></button><button class="swap-btn" id="swapBtn" type="button" aria-label="Swap">⇅</button><span class="locate-note" id="locateNote"></span></div>
+  </div>
+  <div class="section">
+   <div class="section-head"><h2 id="journeyTitle">Your tram trip</h2><span class="hint" id="journeyHint"></span></div>
+   <div class="eta-main" id="etaMain"><div class="eta-top"><span class="micro" id="etaLabel">JOURNEY TIME</span><span class="chip" id="etaChip">—</span></div>
+    <div class="eta-content"><div><span class="eta-number" id="etaNumber">—</span><span class="eta-unit" id="etaUnit"></span></div><div class="eta-dest" id="etaDest">—<small id="etaSub"></small></div></div></div>
+   <div class="result" id="tripList"></div>
+   <p class="section-foot" id="liveNote"></p>
+  </div>
+ </section>
+
+ <section id="view-routes" class="hidden">
+  <div class="section-head"><h2 id="routesTitle">Tram routes</h2><span class="hint" id="routesHint"></span></div>
+  <div id="routeList"></div>
+  <a class="actionbtn" id="officialLink" href="https://www.hktramways.com/en/schedules-fares" target="_blank" rel="noopener" style="margin-top:10px">Schedules and fares on HK Tramways ↗</a>
+ </section>
+
+ <section id="view-settings" class="hidden">
+  <div class="card">
+   <h2 style="margin:4px 0 12px;font-size:17px" id="settingsTitle">Settings</h2>
+   <div class="field-label" id="languageLabel">Interface language</div>
+   <div class="pillrow"><button class="pill" data-lang="en" type="button">English</button><button class="pill" data-lang="tc" type="button">繁體中文</button></div>
+   <div class="subcard"><h3 id="dataTitle">Official data</h3><p id="dataStatus"></p></div>
+   <div class="subcard"><h3 id="aboutTitle">About this dashboard</h3><p id="aboutText"></p></div>
+  </div>
+ </section>
+</main>
+<nav class="bottom" style="grid-template-columns:repeat(3,1fr)" aria-label="Main navigation">
+ <button class="navitem active" data-view="journey" type="button"><svg viewBox="0 0 24 24"><rect x="5" y="6" width="14" height="13" rx="3"/><path d="M5 12h14M9 3h6M12 3v3M8 19l-2 3m10-3 2 3M9 9h1m4 0h1"/></svg><span data-nav="journey">Journey</span></button>
+ <button class="navitem" data-view="routes" type="button"><svg viewBox="0 0 24 24"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h7a4 4 0 0 1 0 8H10a4 4 0 0 0 0 8h7"/></svg><span data-nav="routes">Routes</span></button>
+ <button class="navitem" data-view="settings" type="button"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2m0-14-2 2M7 17l-2 2"/></svg><span data-nav="settings">Settings</span></button>
+</nav>
+<script src="./app.js?v=1.0.0" defer></script>
+</body></html>
