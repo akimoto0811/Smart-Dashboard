@@ -1,0 +1,23 @@
+﻿Passenger,Service Date,Fare (HK$),Remark
+Single Journey - Adult,Mondays to Saturdays except public holidays,33.5,
+Single Journey - Adult,Sundays and public holidays,48.5,
+Single Journey - Child (aged 3 years old or above and under 12 years old),Mondays to Saturdays except public holidays,16.7,
+Single Journey - Child (aged 3 years old or above and under 12 years old),Sundays and public holidays,24.2,
+Single Journey - Passenger aged 65 or above ,Mondays to Saturdays except public holidays,16.7,
+Single Journey - Passenger aged 65 or above ,Sundays and public holidays,24.2,
+Single Journey - Passenger with disabilities,Mondays to Saturdays except public holidays,16.7,
+Single Journey - Passenger with disabilities,Sundays and public holidays,24.2,
+Single Journey - Child under 3 years old (accompanied by adult),Mondays to Saturdays except public holidays,0.0,
+Single Journey - Child under 3 years old (accompanied by adult),Sundays and public holidays,0.0,
+Holiday Return Ticket - Adult,Sundays and public holidays,57.2,1.0
+Holiday Return Ticket - Child (aged 3 years old or above and under 12 years old),Sundays and public holidays,28.6,1.0
+Holiday Return Ticket - Passenger aged 65 or above ,Sundays and public holidays,28.6,1.0
+Holiday Return Ticket - Passenger with disabilities,Sundays and public holidays,28.6,1.0
+Holiday Return Ticket - Child under 3 years old (accompanied by adult),Sundays and public holidays,0.0,1.0
+Monthly Ticket ,Daily,652.8,
+Student Monthly Ticket,Daily,456.8,
+Multi-Ride Ticket (20 Trips),Mondays to Saturdays except public holidays,355.8,
+Multi-Ride Ticket (12 Trips),Mondays to Saturdays except public holidays,213.5,
+Multi-Ride Ticket (6 Trips),Mondays to Saturdays except public holidays,193.0,
+Bicycle (per bicycle),Daily,26.3,
+Freight (per cubic metre),Daily,241.2,

@@ -1,0 +1,31 @@
+﻿Route,Passenger,Service Date,Fare (HK$),Remark
+Central - Peng Chau,Single Journey - Adult,Mondays to Saturdays except public holidays,31.9,
+Central - Peng Chau,Single Journey - Adult,Sundays and public holidays,46.6,
+Central - Peng Chau,Single Journey - Child (aged 3 years old or above and under 12 years old),Mondays to Saturdays except public holidays,15.9,
+Central - Peng Chau,Single Journey - Child (aged 3 years old or above and under 12 years old),Sundays and public holidays,23.3,
+Central - Peng Chau,Single Journey - Person aged 65 or above ,Mondays to Saturdays except public holidays,15.9,
+Central - Peng Chau,Single Journey - Person aged 65 or above ,Sundays and public holidays,23.3,
+Central - Peng Chau,Single Journey - Person with disabilities,Mondays to Saturdays except public holidays,15.9,
+Central - Peng Chau,Single Journey - Person with disabilities,Sundays and public holidays,23.3,
+Central - Peng Chau,Single Journey - Child under 3 years old (accompanied by adult),Mondays to Saturdays except public holidays,0.0,
+Central - Peng Chau,Single Journey - Child under 3 years old (accompanied by adult),Sundays and public holidays,0.0,
+Central - Peng Chau,Same-day Return Ticket - Adult,Mondays to Saturdays except public holidays,44.7,1.0
+Central - Peng Chau,Same-day Return Ticket - Child (aged 3 years old or above and under 12 years old),Mondays to Saturdays except public holidays,22.3,1.0
+Central - Peng Chau,Same-day Return Ticket - Person aged 65 or above ,Mondays to Saturdays except public holidays,22.3,1.0
+Central - Peng Chau,Same-day Return Ticket - Person with disabilities,Mondays to Saturdays except public holidays,22.3,1.0
+Central - Peng Chau,Same-day Return Ticket - Child under 3 years old (accompanied by adult),Mondays to Saturdays except public holidays,0.0,1.0
+Central - Peng Chau,Holiday Return Ticket - Adult,Sundays and public holidays,44.7,1.0
+Central - Peng Chau,Holiday Return Ticket - Child (aged 3 years old or above and under 12 years old),Sundays and public holidays,22.3,1.0
+Central - Peng Chau,Holiday Return Ticket - Person aged 65 or above ,Sundays and public holidays,22.3,1.0
+Central - Peng Chau,Holiday Return Ticket - Person with disabilities,Sundays and public holidays,22.3,1.0
+Central - Peng Chau,Holiday Return Ticket - Child under 3 years old (accompanied by adult),Sundays and public holidays,0.0,1.0
+Central - Peng Chau,Monthly Ticket ,Daily,730.0,
+Central - Peng Chau,Student Monthly Ticket,Daily,511.0,
+Central - Peng Chau,Multi-ride Ticket (10 trips),Daily,188.0,
+Central - Peng Chau,Bicycle (each),Daily,17.4,
+Central - Peng Chau,Freight (per cubic metre),Daily,161.3,
+Peng Chau - Hei Ling Chau,Single Journey - Adult,Daily,21.0,
+Peng Chau - Hei Ling Chau,Single Journey - Child (aged 3 years old or above and under 12 years old),Daily,10.5,
+Peng Chau - Hei Ling Chau,Single Journey - Passenger aged 65 or above ,Daily,10.5,
+Peng Chau - Hei Ling Chau,Single Journey - Passenger with disabilities,Daily,10.5,
+Peng Chau - Hei Ling Chau,Single Journey - Child under 3 years old (accompanied by adult),Daily,0.0,

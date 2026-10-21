@@ -1,0 +1,176 @@
+200 414073 static.data.gov.hk_td_routes-fares-geojson_JSON_FERRY.json https://static.data.gov.hk/td/routes-fares-geojson/JSON_FERRY.json cors=None type=application/json
+200 635125 static.data.gov.hk_td_routes-fares-geojson_JSON_TRAM.json https://static.data.gov.hk/td/routes-fares-geojson/JSON_TRAM.json cors=None type=application/json
+200 4496 static.data.gov.hk_tramways_datasets_tram_stops_summary_tram_stops_en.csv https://static.data.gov.hk/tramways/datasets/tram_stops/summary_tram_stops_en.csv cors=None type=text/csv
+200 214 static.data.gov.hk_tramways_datasets_main_routes_tramways_main_routes_en.csv https://static.data.gov.hk/tramways/datasets/main_routes/tramways_main_routes_en.csv cors=None type=text/csv
+200 3647 static.data.gov.hk_tramways_datasets_tram_stops_summary_tram_stops_tc.csv https://static.data.gov.hk/tramways/datasets/tram_stops/summary_tram_stops_tc.csv cors=None type=text/csv
+200 190 static.data.gov.hk_tramways_datasets_main_routes_tramways_main_routes_tc.csv https://static.data.gov.hk/tramways/datasets/main_routes/tramways_main_routes_tc.csv cors=None type=text/csv
+200 3115 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_pc_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_pc_faretable_eng.csv cors=* type=text/csv
+200 2432 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_pc_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_pc_faretable_chi.csv cors=* type=text/csv
+200 10247 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_pc_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_pc_timetable_eng.csv cors=* type=text/csv
+200 8970 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_pc_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_pc_timetable_chi.csv cors=* type=text/csv
+200 2165 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_ysw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_ysw_faretable_eng.csv cors=* type=text/csv
+200 1703 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_ysw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_ysw_faretable_chi.csv cors=* type=text/csv
+200 9376 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_ysw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_ysw_timetable_eng.csv cors=* type=text/csv
+200 8221 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_ysw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_ysw_timetable_chi.csv cors=* type=text/csv
+200 2165 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_skw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_skw_faretable_eng.csv cors=* type=text/csv
+200 1703 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_skw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_skw_faretable_chi.csv cors=* type=text/csv
+200 3841 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_skw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_skw_timetable_eng.csv cors=* type=text/csv
+200 3477 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_skw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_skw_timetable_chi.csv cors=* type=text/csv
+200 1834 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_mw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_mw_faretable_eng.csv cors=* type=text/csv
+200 1428 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_mw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_mw_faretable_chi.csv cors=* type=text/csv
+200 7712 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_mw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_mw_timetable_eng.csv cors=* type=text/csv
+200 7016 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_mw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_mw_timetable_chi.csv cors=* type=text/csv
+200 3027 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_pc_mw_cmw_cc_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_pc_mw_cmw_cc_faretable_eng.csv cors=* type=text/csv
+200 2258 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_pc_mw_cmw_cc_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_pc_mw_cmw_cc_faretable_chi.csv cors=* type=text/csv
+200 2109 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_pc_mw_cmw_cc_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_pc_mw_cmw_cc_timetable_eng.csv cors=* type=text/csv
+200 2019 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_pc_mw_cmw_cc_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_pc_mw_cmw_cc_timetable_chi.csv cors=* type=text/csv
+200 6923 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_cc_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_cc_faretable_eng.csv cors=* type=text/csv
+200 5066 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_cc_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_cc_faretable_chi.csv cors=* type=text/csv
+200 12056 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_cc_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_cc_timetable_eng.csv cors=* type=text/csv
+200 10393 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_cc_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_cc_timetable_chi.csv cors=* type=text/csv
+200 1793 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_db_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_db_faretable_eng.csv cors=* type=text/csv
+200 1586 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_db_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_db_faretable_chi.csv cors=* type=text/csv
+200 18725 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_central_db_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_central_db_timetable_eng.csv cors=* type=text/csv
+200 18040 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_central_db_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_central_db_timetable_chi.csv cors=* type=text/csv
+200 257 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_mawan_c_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_mawan_c_faretable_eng.csv cors=* type=text/csv
+200 300 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_mawan_c_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_mawan_c_faretable_chi.csv cors=* type=text/csv
+200 3786 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_mawan_c_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_mawan_c_timetable_eng.csv cors=* type=text/csv
+200 3453 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_mawan_c_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_mawan_c_timetable_chi.csv cors=* type=text/csv
+200 267 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_mawan_tw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_mawan_tw_faretable_eng.csv cors=* type=text/csv
+200 296 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_mawan_tw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_mawan_tw_faretable_chi.csv cors=* type=text/csv
+200 931 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_mawan_tw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_mawan_tw_timetable_eng.csv cors=* type=text/csv
+200 814 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_mawan_tw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_mawan_tw_timetable_chi.csv cors=* type=text/csv
+200 604 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_hh_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_hh_faretable_eng.csv cors=* type=text/csv
+200 456 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_hh_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_hh_faretable_chi.csv cors=* type=text/csv
+200 2205 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_hh_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_hh_timetable_eng.csv cors=* type=text/csv
+200 1947 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_hh_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_hh_timetable_chi.csv cors=* type=text/csv
+200 609 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_klnc_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_klnc_faretable_eng.csv cors=* type=text/csv
+200 456 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_klnc_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_klnc_faretable_chi.csv cors=* type=text/csv
+200 2409 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_klnc_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_klnc_timetable_eng.csv cors=* type=text/csv
+200 2100 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_klnc_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_klnc_timetable_chi.csv cors=* type=text/csv
+200 345 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_ktak_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_ktak_faretable_eng.csv cors=* type=text/csv
+200 293 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_ktak_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_ktak_faretable_chi.csv cors=* type=text/csv
+200 9519 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_ktak_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_ktak_timetable_eng.csv cors=* type=text/csv
+200 8374 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_ktak_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_ktak_timetable_chi.csv cors=* type=text/csv
+200 374 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_swh_kt_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_swh_kt_faretable_eng.csv cors=* type=text/csv
+200 299 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_swh_kt_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_swh_kt_faretable_chi.csv cors=* type=text/csv
+200 2579 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_swh_kt_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_swh_kt_timetable_eng.csv cors=* type=text/csv
+200 2456 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_swh_kt_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_swh_kt_timetable_chi.csv cors=* type=text/csv
+200 348 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_swh_skt_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_swh_skt_faretable_eng.csv cors=* type=text/csv
+200 298 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_swh_skt_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_swh_skt_faretable_chi.csv cors=* type=text/csv
+200 2902 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_swh_skt_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_swh_skt_timetable_eng.csv cors=* type=text/csv
+200 2767 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_swh_skt_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_swh_skt_timetable_chi.csv cors=* type=text/csv
+200 3657 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_db_mw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_db_mw_faretable_eng.csv cors=* type=text/csv
+200 3310 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_db_mw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_db_mw_faretable_chi.csv cors=* type=text/csv
+200 1793 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_db_mw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_db_mw_timetable_eng.csv cors=* type=text/csv
+200 1506 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_db_mw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_db_mw_timetable_chi.csv cors=* type=text/csv
+200 14968 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_tm_tc_slw_to_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_tm_tc_slw_to_faretable_eng.csv cors=* type=text/csv
+200 10264 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_tm_tc_slw_to_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_tm_tc_slw_to_faretable_chi.csv cors=* type=text/csv
+200 6626 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_tm_tc_slw_to_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_tm_tc_slw_to_timetable_eng.csv cors=* type=text/csv
+200 5825 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_tm_tc_slw_to_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_tm_tc_slw_to_timetable_chi.csv cors=* type=text/csv
+200 2724 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_abd_skw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_abd_skw_faretable_eng.csv cors=* type=text/csv
+200 2180 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_abd_skw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_abd_skw_faretable_chi.csv cors=* type=text/csv
+200 5899 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_abd_skw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_abd_skw_timetable_eng.csv cors=* type=text/csv
+200 5598 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_abd_skw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_abd_skw_timetable_chi.csv cors=* type=text/csv
+200 4196 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_abd_ysw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_abd_ysw_faretable_eng.csv cors=* type=text/csv
+200 3228 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_abd_ysw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_abd_ysw_faretable_chi.csv cors=* type=text/csv
+200 6690 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_abd_ysw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_abd_ysw_timetable_eng.csv cors=* type=text/csv
+200 5939 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_abd_ysw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_abd_ysw_timetable_chi.csv cors=* type=text/csv
+200 386 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_c_hh_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_c_hh_faretable_eng.csv cors=* type=text/csv
+200 328 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_c_hh_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_c_hh_faretable_chi.csv cors=* type=text/csv
+200 4297 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_c_hh_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_c_hh_timetable_eng.csv cors=* type=text/csv
+200 3797 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_c_hh_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_c_hh_timetable_chi.csv cors=* type=text/csv
+200 2043 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_npkt_mw_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_npkt_mw_faretable_eng.csv cors=* type=text/csv
+200 1525 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_npkt_mw_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_npkt_mw_faretable_chi.csv cors=* type=text/csv
+200 253 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_npkt_mw_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_npkt_mw_timetable_eng.csv cors=* type=text/csv
+200 160 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_npkt_mw_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_npkt_mw_timetable_chi.csv cors=* type=text/csv
+200 328 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_kt_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_kt_faretable_eng.csv cors=* type=text/csv
+200 236 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_kt_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_kt_faretable_chi.csv cors=* type=text/csv
+200 1306 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_np_kt_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_np_kt_timetable_eng.csv cors=* type=text/csv
+200 1129 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_np_kt_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_np_kt_timetable_chi.csv cors=* type=text/csv
+200 353 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_db_pc_tm_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_db_pc_tm_faretable_eng.csv cors=* type=text/csv
+200 326 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_db_pc_tm_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_db_pc_tm_faretable_chi.csv cors=* type=text/csv
+200 7944 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_db_pc_tm_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_db_pc_tm_timetable_eng.csv cors=* type=text/csv
+200 7654 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_db_pc_tm_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_db_pc_tm_timetable_chi.csv cors=* type=text/csv
+200 26567 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_WaterTaxi_faretable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_WaterTaxi_faretable_eng.csv cors=* type=text/csv
+200 19131 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_WaterTaxi_faretable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_WaterTaxi_faretable_chi.csv cors=* type=text/csv
+200 17677 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_en_ferry_WaterTaxi_timetable_eng.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/en/ferry_WaterTaxi_timetable_eng.csv cors=* type=text/csv
+200 15963 www.td.gov.hk_datagovhk_td_ferry-tt-ft_resources_tc_ferry_WaterTaxi_timetable_chi.csv https://www.td.gov.hk/datagovhk_td/ferry-tt-ft/resources/tc/ferry_WaterTaxi_timetable_chi.csv cors=* type=text/csv
+200 2290 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_central_tsimshatsui_faretable_eng.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_central_tsimshatsui_faretable_eng.csv cors=None type=application/octet-stream
+200 1906 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_central_tsimshatsui_faretable_chi.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_central_tsimshatsui_faretable_chi.csv cors=None type=application/octet-stream
+200 1502 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_central_tsimshatsui_timetable_eng.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_central_tsimshatsui_timetable_eng.csv cors=None type=application/octet-stream
+200 1398 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_central_tsimshatsui_timetable_chi.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_central_tsimshatsui_timetable_chi.csv cors=None type=application/octet-stream
+200 2318 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_wanchai_tsimshatsui_faretable_eng.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_wanchai_tsimshatsui_faretable_eng.csv cors=None type=application/octet-stream
+200 1855 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_wanchai_tsimshatsui_faretable_chi.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_wanchai_tsimshatsui_faretable_chi.csv cors=None type=application/octet-stream
+200 2130 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_wanchai_tsimshatsui_timetable_eng.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_wanchai_tsimshatsui_timetable_eng.csv cors=None type=application/octet-stream
+200 1994 www.starferry.com.hk_sites_default_files_upload_open_data_csv_ferry_sf_wanchai_tsimshatsui_timetable_chi.csv https://www.starferry.com.hk/sites/default/files/upload/open_data/csv/ferry_sf_wanchai_tsimshatsui_timetable_chi.csv cors=None type=application/octet-stream
+200 6281 www.sunferry.com.hk_eta_faretable_SunFerry_central_cheungchau_faretable_eng.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_central_cheungchau_faretable_eng.csv cors=None type=text/csv
+200 4465 www.sunferry.com.hk_eta_faretable_SunFerry_central_cheungchau_faretable_cht.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_central_cheungchau_faretable_cht.csv cors=None type=text/csv
+200 2165 www.sunferry.com.hk_eta_faretable_SunFerry_central_muiwo_faretable_eng.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_central_muiwo_faretable_eng.csv cors=None type=text/csv
+200 1660 www.sunferry.com.hk_eta_faretable_SunFerry_central_muiwo_faretable_cht.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_central_muiwo_faretable_cht.csv cors=None type=text/csv
+200 3012 www.sunferry.com.hk_eta_faretable_SunFerry_interislands_faretable_eng.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_interislands_faretable_eng.csv cors=None type=text/csv
+200 2246 www.sunferry.com.hk_eta_faretable_SunFerry_interislands_faretable_cht.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_interislands_faretable_cht.csv cors=None type=text/csv
+200 584 www.sunferry.com.hk_eta_faretable_SunFerry_northpoint_hunghom_faretable_eng.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_northpoint_hunghom_faretable_eng.csv cors=None type=text/csv
+200 434 www.sunferry.com.hk_eta_faretable_SunFerry_northpoint_hunghom_faretable_cht.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_northpoint_hunghom_faretable_cht.csv cors=None type=text/csv
+200 588 www.sunferry.com.hk_eta_faretable_SunFerry_northpoint_kowlooncity_faretable_eng.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_northpoint_kowlooncity_faretable_eng.csv cors=None type=text/csv
+200 434 www.sunferry.com.hk_eta_faretable_SunFerry_northpoint_kowlooncity_faretable_cht.csv https://www.sunferry.com.hk/eta/faretable/SunFerry_northpoint_kowlooncity_faretable_cht.csv cors=None type=text/csv
+200 11884 www.sunferry.com.hk_eta_timetable_SunFerry_central_cheungchau_timetable_eng.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_central_cheungchau_timetable_eng.csv cors=None type=text/csv
+200 10230 www.sunferry.com.hk_eta_timetable_SunFerry_central_cheungchau_timetable_cht.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_central_cheungchau_timetable_cht.csv cors=None type=text/csv
+200 11243 www.sunferry.com.hk_eta_timetable_SunFerry_central_muiwo_timetable_eng.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_central_muiwo_timetable_eng.csv cors=None type=text/csv
+200 10669 www.sunferry.com.hk_eta_timetable_SunFerry_central_muiwo_timetable_cht.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_central_muiwo_timetable_cht.csv cors=None type=text/csv
+200 2057 www.sunferry.com.hk_eta_timetable_SunFerry_interislands_timetable_eng.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_interislands_timetable_eng.csv cors=None type=text/csv
+200 1975 www.sunferry.com.hk_eta_timetable_SunFerry_interislands_timetable_cht.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_interislands_timetable_cht.csv cors=None type=text/csv
+200 6895 www.sunferry.com.hk_eta_timetable_SunFerry_northpoint_hunghom_timetable_eng.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_northpoint_hunghom_timetable_eng.csv cors=None type=text/csv
+200 6093 www.sunferry.com.hk_eta_timetable_SunFerry_northpoint_hunghom_timetable_cht.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_northpoint_hunghom_timetable_cht.csv cors=None type=text/csv
+200 7255 www.sunferry.com.hk_eta_timetable_SunFerry_northpoint_kowlooncity_timetable_eng.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_northpoint_kowlooncity_timetable_eng.csv cors=None type=text/csv
+200 6363 www.sunferry.com.hk_eta_timetable_SunFerry_northpoint_kowlooncity_timetable_cht.csv https://www.sunferry.com.hk/eta/timetable/SunFerry_northpoint_kowlooncity_timetable_cht.csv cors=None type=text/csv
+200 254 ferry.com.hk_opendataV_fare.csv https://ferry.com.hk/opendataV/fare.csv cors=None type=text/csv
+200 832 ferry.com.hk_opendataV_time.csv https://ferry.com.hk/opendataV/time.csv cors=None type=text/csv
+ERR www.hongkongwatertaxi.com.hk_csv_CentralHHTimetable_eng.csv https://www.hongkongwatertaxi.com.hk/csv/CentralHHTimetable_eng.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_CentralHHTimetable_cht.csv https://www.hongkongwatertaxi.com.hk/csv/CentralHHTimetable_cht.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_NPKTTimetable_eng.csv https://www.hongkongwatertaxi.com.hk/csv/NPKTTimetable_eng.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_NPKTTimetable_cht.csv https://www.hongkongwatertaxi.com.hk/csv/NPKTTimetable_cht.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_TMTOTimetable_eng.csv https://www.hongkongwatertaxi.com.hk/csv/TMTOTimetable_eng.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_TMTOTimetable_cht.csv https://www.hongkongwatertaxi.com.hk/csv/TMTOTimetable_cht.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_CentralHHFaretable_eng.csv https://www.hongkongwatertaxi.com.hk/csv/CentralHHFaretable_eng.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_CentralHHFaretable_cht.csv https://www.hongkongwatertaxi.com.hk/csv/CentralHHFaretable_cht.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_NPKTFaretable_eng.csv https://www.hongkongwatertaxi.com.hk/csv/NPKTFaretable_eng.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_NPKTFaretable_cht.csv https://www.hongkongwatertaxi.com.hk/csv/NPKTFaretable_cht.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_TMTOFaretable_eng.csv https://www.hongkongwatertaxi.com.hk/csv/TMTOFaretable_eng.csv HTTP Error 403: Forbidden
+ERR www.hongkongwatertaxi.com.hk_csv_TMTOFaretable_cht.csv https://www.hongkongwatertaxi.com.hk/csv/TMTOFaretable_cht.csv HTTP Error 403: Forbidden
+200 1325 hkkf_route.json https://www.hkkfeta.com/opendata/route cors=* type=text/html; charset=utf-8
+200 251 hkkf_pier__1.json https://www.hkkfeta.com/opendata/pier/1 cors=* type=text/html; charset=utf-8
+ERR hkkf_pier__1_.json https://www.hkkfeta.com/opendata/pier/1/ HTTP Error 404: Not Found
+ERR hkkf_pier__route_id_1.json https://www.hkkfeta.com/opendata/pier?route_id=1 HTTP Error 422: Unprocessable Entity
+ERR hkkf_pier__1_1.json https://www.hkkfeta.com/opendata/pier/1/1 HTTP Error 404: Not Found
+ERR hkkf_pier__1_inbound.json https://www.hkkfeta.com/opendata/pier/1/inbound HTTP Error 404: Not Found
+ERR hkkf_time_table__1.json https://www.hkkfeta.com/opendata/time_table/1 HTTP Error 422: Unprocessable Entity
+ERR hkkf_time_table__1_.json https://www.hkkfeta.com/opendata/time_table/1/ HTTP Error 422: Unprocessable Entity
+ERR hkkf_time_table__route_id_1.json https://www.hkkfeta.com/opendata/time_table?route_id=1 HTTP Error 422: Unprocessable Entity
+ERR hkkf_time_table__1_1.json https://www.hkkfeta.com/opendata/time_table/1/1 HTTP Error 422: Unprocessable Entity
+200 1593 hkkf_time_table__1_inbound.json https://www.hkkfeta.com/opendata/time_table/1/inbound cors=* type=text/csv
+200 503 hkkf_fare_table__1.json https://www.hkkfeta.com/opendata/fare_table/1 cors=* type=text/csv
+ERR hkkf_fare_table__1_.json https://www.hkkfeta.com/opendata/fare_table/1/ HTTP Error 404: Not Found
+ERR hkkf_fare_table__route_id_1.json https://www.hkkfeta.com/opendata/fare_table?route_id=1 HTTP Error 422: Unprocessable Entity
+ERR hkkf_fare_table__1_1.json https://www.hkkfeta.com/opendata/fare_table/1/1 HTTP Error 404: Not Found
+ERR hkkf_fare_table__1_inbound.json https://www.hkkfeta.com/opendata/fare_table/1/inbound HTTP Error 404: Not Found
+ERR hkkf_eta__1.json https://www.hkkfeta.com/opendata/eta/1 HTTP Error 422: Unprocessable Entity
+ERR hkkf_eta__1_.json https://www.hkkfeta.com/opendata/eta/1/ HTTP Error 422: Unprocessable Entity
+ERR hkkf_eta__route_id_1.json https://www.hkkfeta.com/opendata/eta?route_id=1 HTTP Error 422: Unprocessable Entity
+ERR hkkf_eta__1_1.json https://www.hkkfeta.com/opendata/eta/1/1 HTTP Error 422: Unprocessable Entity
+200 97 hkkf_eta__1_inbound.json https://www.hkkfeta.com/opendata/eta/1/inbound cors=* type=text/html; charset=utf-8
+200 259294 hkkf_spec.pdf https://www.hkkfeta.com/datagovhk/HKKF_ETA_API_Specification.pdf cors=None type=application/pdf
+200 1004366 sunferry_spec.pdf https://www.sunferry.com.hk/eta/SunFerry_ETA_API_Specification_and_Data_Dictionary.pdf cors=None type=application/pdf
+200 678 sunferry_eta_CECC.json https://www.sunferry.com.hk/eta/?route=CECC cors=* type=application/json
+200 679 sunferry_eta_CCCE.json https://www.sunferry.com.hk/eta/?route=CCCE cors=* type=application/json
+200 378 sunferry_eta_CEMW.json https://www.sunferry.com.hk/eta/?route=CEMW cors=* type=application/json
+200 341 sunferry_eta_MWCE.json https://www.sunferry.com.hk/eta/?route=MWCE cors=* type=application/json
+200 366 sunferry_eta_NPHH.json https://www.sunferry.com.hk/eta/?route=NPHH cors=* type=application/json
+200 366 sunferry_eta_HHNP.json https://www.sunferry.com.hk/eta/?route=HHNP cors=* type=application/json
+200 376 sunferry_eta_NPKC.json https://www.sunferry.com.hk/eta/?route=NPKC cors=* type=application/json
+200 376 sunferry_eta_KCNP.json https://www.sunferry.com.hk/eta/?route=KCNP cors=* type=application/json
+200 404 sunferry_eta_IIPECMUW.json https://www.sunferry.com.hk/eta/?route=IIPECMUW cors=* type=application/json
+200 407 sunferry_eta_IIMUWPEC.json https://www.sunferry.com.hk/eta/?route=IIMUWPEC cors=* type=application/json
+200 47 tram_eat_32W.xml https://www.hktramways.com/nextTram/geteat.php?stop_code=32W cors=None type=text/html
+200 47 tram_eat_01E.xml https://www.hktramways.com/nextTram/geteat.php?stop_code=01E cors=None type=text/html
+200 47 tram_eat_75E.xml https://www.hktramways.com/nextTram/geteat.php?stop_code=75E cors=None type=text/html

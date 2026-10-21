@@ -1,0 +1,8 @@
+﻿type/票種,Monday to Saturday/星期一至星期六,Sunday and Public Holidays/星期日及公眾假期
+month_ticket/月票,893
+student_month_ticket/學生月票,625
+multi-ride_ticket/多程票,261
+adult/成人,30.9,43.5
+child (aged 3 or above but under 12)/小童(3歲或以上但12歲以下),15.4,21.7
+elderly (aged 65 or above) or disabled/長者(65歲或以上) 或 傷健人士,15.4,21.7
+child under 3 (accompanied by adult)/3歲以下小童(須有成人陪同),Free 免費,Free 免費

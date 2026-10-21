@@ -1,0 +1,22 @@
+Passenger,Service Date,Ferry Type,Fare (HK$),Remark
+Single Journey - Adult,Mondays to Saturdays except public holidays,Fast Ferry Service,33.5,
+Single Journey - Adult,Sundays and public holidays,Fast Ferry Service,48.5,
+Single Journey - Child (aged 3 years old or above and under 12 years old),Mondays to Saturdays except public holidays,Fast Ferry Service,16.7,
+Single Journey - Child (aged 3 years old or above and under 12 years old),Sundays and public holidays,Fast Ferry Service,24.2,
+Single Journey - Passenger aged 65 or above,Mondays to Saturdays except public holidays,Fast Ferry Service,16.7,
+Single Journey - Passenger aged 65 or above ,Sundays and public holidays,Fast Ferry Service,24.2,
+Single Journey - Passenger with disabilities,Mondays to Saturdays except public holidays,Fast Ferry Service,16.7,
+Single Journey - Passenger with disabilities,Sundays and public holidays,Fast Ferry Service,24.2,
+Single Journey - Child under 3 years old (accompanied by adult),Mondays to Saturdays except public holidays,Fast Ferry Service,0,
+Single Journey - Child under 3 years old (accompanied by adult),Sundays and public holidays,Fast Ferry Service,0,
+Holiday Return Ticket - Adult,Sundays and public holidays,Fast Ferry Service,57.2,1
+Holiday Return Ticket - Child (aged 3 years old or above and under 12 years old),Sundays and public holidays,Fast Ferry Service,28.6,1
+Holiday Return Ticket - Passenger aged 65 or above,Sundays and public holidays,Fast Ferry Service,28.6,1
+Holiday Return Ticket - Passenger with disabilities,Sundays and public holidays,Fast Ferry Service,28.6,1
+Holiday Return Ticket - Child under 3 years old (accompanied by adult),Sundays and public holidays,Fast Ferry Service,0,1
+Monthly Ticket,Mondays to Sundays,Ordinary Ferry Service,652.8,
+Multi-ride Ticket 6 Trips,Mondays to Sundays,Ordinary Ferry Service,193,
+Multi-ride Ticket 12 Trips,Mondays to Sundays,Ordinary Ferry Service,213.5,
+Multi-ride Ticket 20 Trips,Mondays to Sundays,Ordinary Ferry Service,355.8,
+Bicycle (per bicycle),Mondays to Sundays,Ordinary Ferry Service,26.3,
+Freight (per cubic metre),Mondays to Sundays,Ordinary Ferry Service,241.2,

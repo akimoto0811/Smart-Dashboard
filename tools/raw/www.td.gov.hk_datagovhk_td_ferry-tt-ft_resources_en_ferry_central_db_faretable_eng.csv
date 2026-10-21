@@ -1,0 +1,19 @@
+﻿Passenger,Service Date,Ferry Type,Fare (HK$),Fare (points),Remark
+Single Journey - Adult,Daily,paid in cash,55.8,N/A,
+Single Journey - Adult,Daily,paid by Registered Octopus Card,38.2,N/A,1
+Single Journey - Adult,Daily,paid by Non-registered Octopus Card,55.8,N/A,
+Single Journey - Passenger aged 65 or above,Daily,paid in cash,27.9,N/A,
+Single Journey - Passenger aged 65 or above,Daily,paid by Registered Octopus Card,24,N/A,1
+Single Journey - Passenger aged 65 or above,Daily,paid by Non-registered Octopus Card,27.9,N/A,
+Single Journey - Child (aged 1 or above but under 12),Daily,paid in cash,27.9,N/A,
+Single Journey - Child (aged 1 or above but under 12),Daily,paid by Registered Octopus Card,19.1,N/A,1
+Single Journey - Child (aged 1 or above but under 12),Daily,paid by Non-registered Octopus Card,27.9,N/A,
+Single Journey - Full-time student under 26 years old residing in Discovery Bay,Daily,paid by Registered Octopus Card,19.1,N/A,1
+Single Journey - Child under 1 year old (accompanied by adult),Daily,paid in cash,0,N/A,
+Single Journey - Child under 1 year old (accompanied by adult),Daily,paid by Registered Octopus Card,0,N/A,1
+Single Journey - Child under 1 year old (accompanied by adult),Daily,paid by Non-registered Octopus Card,0,N/A,
+Transport Card  - Adult,Daily,Transport Card ,N/A,44.2,2
+Transport Card  - Passenger aged 65 or above,Daily,Transport Card ,N/A,22.1,2
+Transport Card  - Child (aged 1 or above but under 12),Daily,Transport Card ,N/A,22.1,2
+Transport Card  - Child under 1 year old (accompanied by adult),Daily,Transport Card ,N/A,0,2
+Foreign Domestic Helpers employed by Discovery Bay Residents,"Saturdays, Sundays and statutory holidays",Concessionary Fare for Foreign Domestic Helpers employed by Discovery Bay Residents,30,N/A,3
