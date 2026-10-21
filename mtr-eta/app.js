@@ -123,16 +123,20 @@ function renderJourney(){const t=T(),box=$('journeyResult'),from=$('fareFrom').v
  const fares=`<div class="journey-fare"><span>${safe(t.octopusShort)} <b>${safe($('octopusValue').textContent)}</b></span><span>${safe(t.singleShort)} <b>${safe($('singleValue').textContent)}</b></span></div>`;
  box.innerHTML=`<div class="journey-sum"><strong>${safe(t.about)} ${plan.min} <small>${safe(t.minShort)}</small></strong><span>${safe(changes?changes+' '+(state.lang==='tc'?t.change:changes>1?t.changes:t.change):t.direct)}</span></div>`+
   plan.legs.map((l,i)=>l.line==='WALK'?`<div class="journey-change">${safe(t.walk)} ${safe(name(l.from))} → ${safe(name(l.to))} · ${safe(t.about)} ${Math.round(l.min)} ${safe(t.minShort)}</div>`:`${i&&plan.legs[i-1].line!=='WALK'?`<div class="journey-change">${safe(t.changeAt.replace('{s}',name(l.from)))}</div>`:''}<div class="journey-leg" style="--leg:${safe(LINES[l.line].color)}"><span class="leg-bar"></span><div><strong>${safe(lineName(LINES[l.line]))} <small>${safe(t.towardsLeg)} ${safe(l.towards.map(name).join(' / '))}</small></strong><small>${safe(name(l.from))} → ${safe(name(l.to))} · ${l.stops} ${safe(l.stops>1?t.stops:t.stop)} · ${safe(t.about)} ${Math.round(l.min)} ${safe(t.minShort)}</small></div></div>`).join('')+fares;}
-async function loadCoords(){try{const j=await getJSON('./station-coords.json?v=1',12000);if(j?.stations&&Object.keys(j.stations).length>50)coords=j.stations;}catch{}renderJourney();}
-function locate(){const t=T(),note=$('locateNote');
+async function loadCoords(){try{const j=await getJSON('./station-coords.json?v=1',12000);if(j?.stations&&Object.keys(j.stations).length>50)coords=j.stations;}catch{}renderJourney();if(coords)void autoLocate();}
+// Locate on every app open, unless location is blocked (then Locate me still explains why).
+async function autoLocate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state==='denied')return;}catch{}locate(true);}
+function locate(auto=false){const t=T(),note=$('locateNote');
  if(!coords){note.textContent=t.locateNoData;return;}if(!navigator.geolocation){note.textContent=t.locateFail;return;}
  note.textContent=t.locating;navigator.geolocation.getCurrentPosition(pos=>{const here=[pos.coords.latitude,pos.coords.longitude];coords.__here=here;
   let nearest=null;for(const code of stationByCode.keys()){if(code==='RAC')continue;const d=km('__here',code);if(d!==null&&(!nearest||d<nearest.d))nearest={code,d};}delete coords.__here;
   if(!nearest){note.textContent=t.locateFail;return;}
   const lines=Object.keys(LINES).filter(l=>D(l).some(s=>s[0]===nearest.code));if(!lines.includes(state.line))state.line=lines.find(l=>l!=='AEL')||lines[0];
   state.station=nearest.code;state.dir='UP';state.receivedAt=0;state.apiKey='';populateSelects();persist();refresh(true);
+  // Journeys start from the nearest station too.
+  $('fareFromLine').value=state.line;fillStations('From',nearest.code);renderFare();
   note.textContent=`${t.nearest}: ${name(nearest.code)} · ${nearest.d<1?Math.max(10,Math.round(nearest.d*100)*10)+' m':nearest.d.toFixed(1)+' km'}`;},
-  err=>{note.textContent=err.code===1?t.locateDenied:t.locateFail;},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
+  err=>{note.textContent=auto?'':err.code===1?t.locateDenied:t.locateFail;},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
 function renderStation(){const code=$(state.infoSide==='from'?'fareFrom':'fareTo')?.value;if(!code)return;
  txt('infoFromBtn',name($('fareFrom').value));txt('infoToBtn',name($('fareTo').value));
  document.querySelectorAll('[data-info]').forEach(b=>b.classList.toggle('sel',b.dataset.info===(state.infoSide||'to')));
@@ -175,7 +179,7 @@ function install(){translate();navigate(state.view);
  for(const side of ['From','To'])$('fare'+side+'Line').addEventListener('change',()=>{fillStations(side,$('fare'+side).value);renderFare();});
  $('fareSwap').onclick=()=>{const fl=$('fareFromLine').value,fs=$('fareFrom').value;$('fareFromLine').value=$('fareToLine').value;fillStations('From',$('fareTo').value);$('fareToLine').value=fl;fillStations('To',fs);renderFare();};
  document.querySelectorAll('[data-info]').forEach(b=>b.onclick=e=>{e.preventDefault();state.infoSide=b.dataset.info;$('stationInfo').open=true;renderStation();});
- $('locateBtn').onclick=locate;
+ $('locateBtn').onclick=()=>locate();
  setInterval(()=>{if(document.visibilityState==='visible'&&state.view==='eta'){if(!state.loading&&Date.now()-state.receivedAt>20000)refresh(true);else renderETA();}},12000);
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&state.view==='eta')refresh(true)});
  void loadCSVData();void loadCoords();
