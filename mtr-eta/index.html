@@ -14,7 +14,7 @@
  async function check(){try{const r=await fetch(location.pathname,{cache:'no-store'});if(!r.ok)return;const fresh=new DOMParser().parseFromString(await r.text(),'text/html'),theirs=marks(fresh);
   if(!theirs||theirs===marks(document))return;const key='reloaded:'+location.pathname+theirs;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');
   location.replace(location.pathname+'?v='+encodeURIComponent(theirs.match(/\?v=([\w.-]+)/)[1]));}catch{}}
- addEventListener('DOMContentLoaded',check);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
+ addEventListener('DOMContentLoaded',check);if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('../sw.js').catch(()=>{}));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
 </script>
 </head>
 <body>
