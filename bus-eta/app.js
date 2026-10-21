@@ -211,8 +211,33 @@ function normalizeCatalogue(json){if(json.schema_version===4&&Array.isArray(json
 function physicalDirection(it, routeOps){
  const mapped=state.routeOrientation.get(it.route)?.mapping?.[it.operator]?.[it.direction];
  if(mapped)return mapped;
- if(routeOps?.has('KMB')&&routeOps.has('CTB'))return it.operator+'_'+it.direction;
+ if(routeOps?.has('KMB')&&routeOps.has('CTB')){
+  const guess=catalogueMapping(it.route)?.[it.operator]?.[it.direction];
+  return guess||it.operator+'_'+it.direction;
+ }
  return it.direction;
+}
+// Until a joint route's directions are verified live, match them from the
+// catalogue's own first stops with the same rule ensurePhysicalRoute uses, so
+// first-time users see one KMB/Citybus row per direction instead of four.
+let catalogueFirsts=null,catalogueFirstsSource=null;
+const catalogueMappings=new Map();
+function catalogueMapping(route){
+ if(catalogueFirstsSource!==state.catalogue){catalogueFirstsSource=state.catalogue;catalogueFirsts=new Map();catalogueMappings.clear();
+  for(const x of state.catalogue){if(!goodPosition(x))continue;const k=x.operator+'|'+x.route+'|'+x.direction,old=catalogueFirsts.get(k);
+   if(!old||(old.service_type!=='1'&&x.service_type==='1'))catalogueFirsts.set(k,x);}}
+ if(catalogueMappings.has(route))return catalogueMappings.get(route);
+ const first=(op,d)=>catalogueFirsts.get(op+'|'+route+'|'+d);
+ // Each Citybus direction joins the KMB direction starting nearest to it (within
+ // 1.8 km, and clearly nearer than the other one). Same-numbered routes in
+ // different districts, such as KMB 1 and Citybus 1, start far apart and stay apart.
+ const ctb={};
+ for(const d of ['O','I']){const c=first('CTB',d);if(!c)continue;
+  const near=['O','I'].map(k=>{const s=first('KMB',k);return s?{k,m:distance(s.lat,s.lng,c.lat,c.lng)}:null}).filter(Boolean).sort((x,y)=>x.m-y.m);
+  if(near.length&&near[0].m<=1800&&(near.length<2||near[1].m-near[0].m>=350))ctb[d]=near[0].k;}
+ const used=Object.values(ctb);
+ const out=used.length&&new Set(used).size===used.length?{KMB:{O:'O',I:'I'},CTB:{O:ctb.O||'CTB_O',I:ctb.I||'CTB_I'}}:null;
+ catalogueMappings.set(route,out);return out;
 }
 function makeGroups(items){
  const routeOps=new Map();
@@ -474,8 +499,10 @@ async function ensurePhysicalRoute(route){
     if(Math.min(oDist,iDist)>1800||Math.abs(oDist-iDist)<350)throw Error('Terminal direction mapping ambiguous');
     if(iDist<oDist)mapping.CTB={O:'I',I:'O'};
    }catch{
-    // Never mix opposite routes if matching cannot be established.
-    separated=true;mapping.CTB={O:'CTB_O',I:'CTB_I'};
+    // Without live data, fall back to the catalogue match; never mix opposite
+    // routes if neither can establish it.
+    const guess=catalogueMapping(route);
+    if(guess)mapping.CTB=guess.CTB;else{separated=true;mapping.CTB={O:'CTB_O',I:'CTB_I'};}
    }
   }
   const directions={O:routeDest(main,outInfo,'O'),I:routeDest(main,inInfo,'I')};
@@ -484,10 +511,12 @@ async function ensurePhysicalRoute(route){
    directions.CTB_O=routeDest('CTB',ctbInfo,'O');directions.CTB_I=routeDest('CTB',ctbInfo,'I');
   }
   // If authoritative metadata is unavailable, do not invent destinations.
-  for(const [dir,name] of Object.entries(directions))if(!name?.en&&!name?.tc)directions[dir]={en:'Destination unavailable',tc:'目的地資料暫缺'};
+  // Missing names fall back to the catalogue's destinations in makeGroups.
+  for(const [dir,name] of Object.entries(directions))if(!name?.en&&!name?.tc)delete directions[dir];
   const info={mapping,destinations:directions,verifiedAt:Date.now(),separated};
   state.routeOrientation.set(route,info);
-  const saved=storage(ROUTE_DIRECTION_STORAGE,{});if(saved&&typeof saved==='object'&&!Array.isArray(saved)){
+  // Only remember results built from live data, so an offline open isn't kept for a day.
+  const saved=(outInfo||inInfo)&&storage(ROUTE_DIRECTION_STORAGE,{});if(saved&&typeof saved==='object'&&!Array.isArray(saved)){
    saved[route]=info;const keys=Object.keys(saved);
    if(keys.length>100){keys.sort((a,b)=>saved[a].verifiedAt-saved[b].verifiedAt);for(const k of keys.slice(0,keys.length-100))delete saved[k];}
    persist(ROUTE_DIRECTION_STORAGE,saved);
