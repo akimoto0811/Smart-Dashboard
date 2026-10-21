@@ -6,13 +6,16 @@ const $=id=>document.getElementById(id);
 const txt=(id,v)=>{const e=$(id);if(e)e.textContent=v};
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const PREFS='tram_prefs';
+// Address of the Cloudflare Worker from tools/tram-proxy (e.g. 'https://hk-tram.example.workers.dev').
+// Leave empty to run without live tram times.
+const TRAM_PROXY='';
 
 const TEXT={
  en:{home:'Dashboard',eyebrow:'HONG KONG · SMART DASHBOARD',heading:'Tram ETA',badge:'ROUTES & FARES',fromLabel:'From',toLabel:'To',locate:'Locate me',locating:'Finding you…',
   nearest:'Nearest stop',locateFail:'Location unavailable.',locateDenied:'Location permission is off.',journeyTitle:'Your tram trip',etaLabel:'JOURNEY TIME',min:'min',
   towards:'Towards',stops:n=>`${n} stop${n===1?'':'s'}`,adult:'adult',same:'Pick two different stops.',none:'No tram runs directly between these stops.',
-  also:'Other trams',viaRoute:'Route',fare:'Flat fare',
-  liveNote:'Live tram arrival times aren’t open to other apps, so this shows the routes, stops, journey time and fare from official data. Journey time is the timetabled average.',
+  also:'Other trams',liveTitle:'Next trams at this stop',liveNone:'No trams predicted right now.',liveFail:'Live tram times unavailable.',due:'Due',yourWay:'your way',viaRoute:'Route',fare:'Flat fare',
+  liveNote:TRAM_PROXY?'Journey time is the timetabled average. Live times from HK Tramways.':'Live tram arrival times aren’t open to other apps, so this shows the routes, stops, journey time and fare from official data. Journey time is the timetabled average.',
   routesTitle:'Tram routes',routesHint:n=>`${n} routes`,official:'Schedules and fares on HK Tramways ↗',
   settingsTitle:'Settings',languageLabel:'Interface language',dataTitle:'Official data',aboutTitle:'About this dashboard',
   dataStatus:d=>`Stops, routes, journey times and fares updated ${d} from the Transport Department's public transport routes and fares data.`,
@@ -21,8 +24,8 @@ const TEXT={
  tc:{home:'主頁',eyebrow:'香港 · 智能交通資訊',heading:'電車資訊',badge:'路線及車費',fromLabel:'由',toLabel:'往',locate:'定位',locating:'正在定位…',
   nearest:'最近車站',locateFail:'無法取得位置。',locateDenied:'未開啟定位權限。',journeyTitle:'電車行程',etaLabel:'行車時間',min:'分鐘',
   towards:'往',stops:n=>`${n} 個站`,adult:'成人',same:'請選擇兩個不同的車站。',none:'沒有電車直接來往這兩個車站。',
-  also:'其他電車',viaRoute:'路線',fare:'劃一車費',
-  liveNote:'電車實時到站時間未有開放給其他應用程式，因此這裡顯示官方資料中的路線、車站、行車時間及車費。行車時間為時間表平均值。',
+  also:'其他電車',liveTitle:'此站下一班電車',liveNone:'暫時沒有預報班次。',liveFail:'未能取得實時電車資料。',due:'即將到達',yourWay:'適合你',viaRoute:'路線',fare:'劃一車費',
+  liveNote:TRAM_PROXY?'行車時間為時間表平均值。實時班次來自香港電車。':'電車實時到站時間未有開放給其他應用程式，因此這裡顯示官方資料中的路線、車站、行車時間及車費。行車時間為時間表平均值。',
   routesTitle:'電車路線',routesHint:n=>`${n} 條路線`,official:'香港電車網頁的班次及車費 ↗',
   settingsTitle:'設定',languageLabel:'介面語言',dataTitle:'官方資料',aboutTitle:'關於此資訊板',
   dataStatus:d=>`車站、路線、行車時間及車費於 ${d} 更新，資料來自運輸署公共交通路線及車費資料。`,
@@ -82,6 +85,31 @@ function render(){
  $('tripList').innerHTML=rows.map(x=>`<div class="trip"><span class="pip"></span><span class="label"><strong>${esc(t.towards)} ${esc(terminus(x.end))}</strong><small>${esc(t.viaRoute)}: ${esc(routeName(x.r))} · ${esc(t.stops(x.stops))}</small></span><span class="big">${x.mins} <small>${esc(t.min)}</small></span></div>`).join('');
 }
 
+// Next trams at the From stop, through the proxy (HK Tramways' feed is XML).
+let live={stop:null,rows:null,error:false,at:0};
+async function loadLive(force=false){
+ const st=data?.stops[+state.from];if(!TRAM_PROXY||!st?.codes?.length){live={stop:null,rows:null,error:false,at:0};renderLive();return;}
+ if(!force&&live.stop===+state.from&&Date.now()-live.at<20000)return;
+ const stopIdx=+state.from,rows=[];let ok=false;
+ await Promise.all(st.codes.map(async code=>{try{
+  const r=await fetch(`${TRAM_PROXY.replace(/\/$/,'')}/?stop_code=${encodeURIComponent(code)}`,{cache:'no-store'});if(!r.ok)return;
+  const xml=new DOMParser().parseFromString(await r.text(),'text/xml');ok=true;
+  for(const e of xml.querySelectorAll('[arrive_in_minute]'))rows.push({min:+e.getAttribute('arrive_in_minute'),en:e.getAttribute('tram_dest_en')||'',tc:e.getAttribute('tram_dest_tc')||''});
+ }catch{}}));
+ if(stopIdx!==+state.from)return;
+ live={stop:stopIdx,rows:rows.filter(x=>Number.isFinite(x.min)).sort((a,b)=>a.min-b.min).slice(0,5),error:!ok,at:Date.now()};renderLive();
+}
+function renderLive(){
+ const t=T(),el=$('live');if(!el)return;
+ if(!TRAM_PROXY||live.stop!==+state.from){el.classList.add('hidden');return;}
+ el.classList.remove('hidden');
+ const ends=trips(+state.from,+state.to).map(x=>terminus(x.end).toLowerCase());
+ const mine=r=>ends.some(e=>(r.en+' '+r.tc).toLowerCase().includes(e.split(' ')[0].toLowerCase()));
+ el.innerHTML=`<div class="micro" style="margin-bottom:3px">${esc(t.liveTitle.toUpperCase())}</div>`+(live.error?`<div class="live-row"><span>${esc(t.liveFail)}</span></div>`
+  :live.rows.length?live.rows.map(r=>`<div class="live-row"><span>${esc(t.towards)} ${esc(state.lang==='tc'?r.tc||r.en:r.en||r.tc)}${mine(r)?` · ${esc(t.yourWay)}`:''}</span><strong>${r.min<=0?esc(t.due):`${r.min} ${esc(t.min)}`}</strong></div>`).join('')
+  :`<div class="live-row"><span>${esc(t.liveNone)}</span></div>`);
+}
+
 function renderRoutes(){
  const t=T();txt('routesHint',t.routesHint(data.routes.length));
  $('routeList').innerHTML=data.routes.map(r=>`<details class="more"><summary><span>${esc(routeName(r))}<br><span class="hint">${r.mins} ${esc(t.min)} · $${r.fare}</span></span></summary>`+
@@ -112,14 +140,14 @@ function locate(auto=false){
   const here=[pos.coords.latitude,pos.coords.longitude];let best=null;
   data.stops.forEach((s,i)=>{const d=km(here,[s.lat,s.lng]);if(!best||d<best.d)best={i,d};});
   state.from=best.i;if(state.to===best.i)state.to=state.from===0?1:0;
-  fillSelects();persist();render();
+  fillSelects();persist();render();loadLive(true);
   note.textContent=`${t.nearest}: ${stop(best.i)} · ${dist(best.d)}`;
  },err=>{note.textContent=auto?'':err.code===1?t.locateDenied:t.locateFail;},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
 }
 
-$('fromSelect').onchange=e=>{state.from=+e.target.value;persist();render();};
-$('toSelect').onchange=e=>{state.to=+e.target.value;persist();render();};
-$('swapBtn').onclick=()=>{[state.from,state.to]=[state.to,state.from];fillSelects();persist();render();};
+$('fromSelect').onchange=e=>{state.from=+e.target.value;persist();render();loadLive(true);};
+$('toSelect').onchange=e=>{state.to=+e.target.value;persist();render();renderLive();};
+$('swapBtn').onclick=()=>{[state.from,state.to]=[state.to,state.from];fillSelects();persist();render();loadLive(true);};
 $('locateBtn').onclick=()=>locate(false);
 document.querySelectorAll('.navitem').forEach(b=>b.onclick=()=>show(b.dataset.view));
 document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{state.lang=b.dataset.lang;try{localStorage.setItem('dashboard_lang',JSON.stringify(state.lang))}catch{}persist();texts();fillSelects();render();renderRoutes();});
@@ -128,5 +156,7 @@ document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{state.lang=b.
  texts();txt('statusNote',T().loading);
  try{const r=await fetch('./tram-data.json?v=1.0.0',{cache:'no-cache'});if(!r.ok)throw 0;data=await r.json();}
  catch{txt('statusNote',T().loadFail);$('badge').classList.add('warning');return;}
- texts();fillSelects();render();autoLocate();
+ texts();fillSelects();render();loadLive(true);autoLocate();
 })();
+setInterval(()=>{if(data&&document.visibilityState==='visible')loadLive();},20000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&data)loadLive(true);});

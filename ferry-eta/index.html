@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b1120">
 <title>Ferry ETA · Hong Kong ferries</title>
-<link rel="apple-touch-icon" href="../bus-eta/icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="../bus-eta/icons/icon-192.png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="../icons/icon-192.png">
 <link rel="stylesheet" href="../shared/transit.css?v=1.0.0">
 <script>
 // GitHub Pages lets Safari keep this page for up to 10 minutes, so after a
@@ -15,7 +15,7 @@
  async function check(){try{const r=await fetch(location.pathname,{cache:'no-store'});if(!r.ok)return;const fresh=new DOMParser().parseFromString(await r.text(),'text/html'),theirs=marks(fresh);
   if(!theirs||theirs===marks(document))return;const key='reloaded:'+location.pathname+theirs;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');
   location.replace(location.pathname+'?v='+encodeURIComponent(theirs.match(/\?v=([\w.-]+)/)[1]));}catch{}}
- addEventListener('DOMContentLoaded',check);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
+ addEventListener('DOMContentLoaded',check);if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('../sw.js').catch(()=>{}));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
 </script>
 </head>
 <body>

@@ -71,6 +71,20 @@ def build_tram():
     for r in sorted(routes.values(), key=lambda r: r['id']):
         r['dirs'] = [[index[n] for n in d] for d in r['dirs']]
         out.append(r)
+    # HK Tramways' own stop codes (e.g. 32W, 75E), used to ask for live arrivals.
+    key = lambda n: re.sub(r'[^a-z0-9]', '', n.lower())
+    by_name = {key(st['en']): st for st in stops}
+    try:
+        for row in rows('https://static.data.gov.hk/tramways/datasets/tram_stops/summary_tram_stops_en.csv')[1:]:
+            if len(row) < 3 or row[1].strip() in ('T', 'D', ''):
+                continue
+            st = by_name.get(key(row[2]))
+            if st is None:
+                print('tram stop code without a TD stop:', row, file=sys.stderr)
+                continue
+            st.setdefault('codes', []).append(row[1].strip())
+    except Exception as e:
+        print('tram stop codes unavailable:', e, file=sys.stderr)
     return {'stops': stops, 'routes': out}
 
 
