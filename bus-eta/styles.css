@@ -156,3 +156,9 @@ button,input,select {touch-action:manipulation}
 .eta-inline-chip,.eta-large .eta-chip{flex:1 1 0;min-width:0;max-width:calc((100% - 16px)/3);padding:7px 6px;text-align:center;border:1px solid var(--line);background:var(--panel2);border-radius:13px}
 .eta-inline-chip strong,.eta-large .eta-chip strong{display:block;font-size:15px;font-weight:800;color:var(--mint);font-variant-numeric:tabular-nums}
 .eta-inline-chip small,.eta-large .eta-chip small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+/* The opened stop stands out from the rest of the route list. */
+.stop-row.selected{background:#132b2a;border:1px solid #3f8f73;border-radius:16px;margin:6px 0;padding:0 8px 8px}
+.stop-row.selected + .stop-row,.stop-row:has(+ .stop-row.selected){border-bottom-color:transparent}
+.stop-row.selected .stop-ordinal{background:var(--mint);border-color:var(--mint);color:#08231a}
+.stop-row.selected .stop-label strong{color:var(--mint)}
+.stop-row.selected .expanded-stop{background:#0e1f22;margin-bottom:0}
