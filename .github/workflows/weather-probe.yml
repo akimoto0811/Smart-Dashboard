@@ -1,0 +1,20 @@
+name: Weather probe
+on:
+  push:
+    branches: [claude/weather-probe]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p tools/raw
+          for t in rhrread flw fnd warnsum warningInfo; do for l in en tc; do
+            curl -sS -m 30 -D tools/raw/$t-$l.headers -H "Origin: https://akimoto0811.github.io" -o tools/raw/$t-$l.json "https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=$t&lang=$l" || true
+          done; done
+          ls -la tools/raw
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/raw && git commit -m "Weather probe data" && git push
