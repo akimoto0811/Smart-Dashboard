@@ -163,19 +163,22 @@ async function renderFavs(){
  bus.slice(0,4).forEach((f,k)=>{
   const title=`${f.route} ${t.to} ${tc()?f.destination_tc||f.destination||f.destination_en:f.destination_en||f.destination||''}`;
   const stop=(tc()?f.name_tc||f.name:f.name_en||f.name)||'';
-  items.push(row({kind:'bus',href:'bus-eta/',title,sub:stop}));
+  // Open the Bus app on this route's stop list, with the saved stop marked.
+  const href=`bus-eta/#fav=${encodeURIComponent(f.variants[0].route+'|'+f.variants[0].stop_id)}`;
+  items.push(row({kind:'bus',href,title,sub:stop}));
   const idx=items.length-1;
   jobs.push((async()=>{try{
    const all=(await Promise.all(f.variants.map(async v=>{const url=v.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(v.stop_id)}/${encodeURIComponent(v.route)}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${encodeURIComponent(v.stop_id)}/${encodeURIComponent(v.route)}/${encodeURIComponent(v.service_type||'1')}`;
     try{const j=await getJSON(url);return (j.data||[]).filter(x=>String(x.route).trim()===v.route&&(!x.dir||x.dir===v.direction)&&x.eta).map(x=>Date.parse(x.eta)).filter(a=>Number.isFinite(a)&&a>Date.now()-30000);}catch{return [];}}))).flat().sort((a,b)=>a-b);
-   items[idx]=row({kind:'bus',href:'bus-eta/',title,sub:all.length>1?`${stop} · ${all.slice(1,3).map(a=>mins(a)+' '+t.min).join(', ')}`:stop,when:all.length?whenHTML(mins(all[0])):'',muted:!all.length});draw();
+   items[idx]=row({kind:'bus',href,title,sub:all.length>1?`${stop} · ${all.slice(1,3).map(a=>mins(a)+' '+t.min).join(', ')}`:stop,when:all.length?whenHTML(mins(all[0])):'',muted:!all.length});draw();
   }catch{}})());
  });
  if(mtrFav.length)await mtrData().catch(()=>null);
  mtrFav.slice(0,3).forEach(key=>{
-  const [line,sta]=key.split('|'),set={key:'mtr_eta_v1_prefs',merge:{line,station:sta,dir:'UP'}};
-  items.push(row({kind:'mtr',href:'mtr-eta/',title:stName(sta),sub:lineName(line),set}));const idx=items.length-1;
-  jobs.push(nextTrains(line,sta).then(list=>{items[idx]=row({kind:'mtr',href:'mtr-eta/',title:`${stName(sta)} · ${lineName(line)}`,sub:list.length?trainText(list):t.none,when:list.length?whenHTML(Math.min(...list.map(x=>x.min))):'',muted:!list.length,set});draw();}).catch(()=>{}));
+  // Open the MTR Journey planner with this station as the destination.
+  const [line,sta]=key.split('|'),href=`mtr-eta/#to=${encodeURIComponent(key)}`,set=null;
+  items.push(row({kind:'mtr',href,title:stName(sta),sub:lineName(line)}));const idx=items.length-1;
+  jobs.push(nextTrains(line,sta).then(list=>{items[idx]=row({kind:'mtr',href,title:`${stName(sta)} · ${lineName(line)}`,sub:list.length?trainText(list):t.none,when:list.length?whenHTML(Math.min(...list.map(x=>x.min))):'',muted:!list.length,set});draw();}).catch(()=>{}));
  });
  if(ferryFav.length){try{const d=await load('ferry-eta/ferry-data.json');
   ferryFav.slice(0,3).forEach(f=>{const s=d.services.find(x=>x.id===f.s);const dir=s?.dirs[f.d];if(!dir)return;

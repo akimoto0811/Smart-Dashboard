@@ -1023,7 +1023,7 @@ function drawStopPicker(token){if(token!==state.dialogToken)return;
  const expanded=state.expandedStopKey===stopKey(s);
   const spread=s.distance!==null&&s.farthestDistance!==null&&s.farthestDistance-s.distance>25;
   const distanceLabel=(s.distance!==null?' · '+esc(distanceText(s.distance,spread?s.farthestDistance:s.distance)):'')+(fares?.[i]?' · <span class="stop-fare">'+fareLabel(fares[i])+'</span>':'');
- return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-ordinal" aria-label="Stop '+(i+1)+'">'+(i+1)+'</span><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+(i===highlightedIndex?' <span class="nearest-label">'+(focusIndex>=0?(state.lang==='tc'?'附近上車站':'Your nearby stop'):(state.lang==='tc'?'最近':'Nearest'))+'</span>':'')+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
+ return '<div class="stop-row" data-stop-index="'+i+'"><button class="stop-main" type="button" data-action="expandStop" data-index="'+i+'" aria-expanded="'+String(expanded)+'"><span class="stop-ordinal" aria-label="Stop '+(i+1)+'">'+(i+1)+'</span><span class="stop-label"><strong>'+esc(localizedStop(s))+'</strong><small>'+operatorChips([...new Set(s.variants.map(x=>x.operator))])+distanceLabel+(i===highlightedIndex?' <span class="nearest-label">'+(focusIndex>=0?(state.nearbyFocus?.saved?(state.lang==='tc'?'已收藏上車站':'Your saved stop'):state.lang==='tc'?'附近上車站':'Your nearby stop'):(state.lang==='tc'?'最近':'Nearest'))+'</span>':'')+'</small></span><span class="stop-next" data-eta-first="'+i+'">'+stopETAMarkup(s)+'</span><span class="stop-chevron" aria-hidden="true">'+(expanded?'⌃':'⌄')+'</span></button>'+(expanded?stopExpandedMarkup(s):'')+'</div>';
  }).join('')+'</div>';
  $('#modalBody').innerHTML=body;
  if(modal)modal.scrollTop=scrollTop;
@@ -1289,7 +1289,7 @@ async function indexedGet(key){try{const db=await new Promise((yes,no)=>{const r
  return await new Promise((yes,no)=>{const tx=db.transaction('data');const q=tx.objectStore('data').get(key);q.onsuccess=()=>yes(q.result);q.onerror=()=>no(q.error);tx.oncomplete=()=>db.close();});}catch{return null;}}
 async function indexedPut(key,value){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
  await new Promise((yes,no)=>{const tx=db.transaction('data','readwrite');tx.objectStore('data').put(value,key);tx.oncomplete=()=>{db.close();yes();};tx.onerror=()=>no(tx.error);});}catch{/* Site catalogue still works this session. */}}
-function applyCatalogue(entries,date){state.catalogue=entries;state.groups=makeGroups(entries);state.catalogueDate=date||'Unknown';render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&!state.demo){if(state.position)populateNearby();else if(!state.locationRequested){state.locationRequested=true;locate();}}}
+function applyCatalogue(entries,date){state.catalogue=entries;state.groups=makeGroups(entries);state.catalogueDate=date||'Unknown';render();openPendingFavourite();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&!state.demo){if(state.position)populateNearby();else if(!state.locationRequested){state.locationRequested=true;locate();}}}
 // The raw source document is cached (the compact file is ~1.5 MB), not the
 // expanded rows, so IndexedDB reads and writes stay cheap.
 const CATALOGUE_URL='./catalogue-compact.json',CATALOGUE_STORE='catalogue_v5';
@@ -1366,4 +1366,10 @@ document.addEventListener('visibilitychange',()=>{
 });
 const stopLinksReady=loadOfficialStopLinks();
 const tdRoutesReady=loadTDRoutes();
+// The dashboard menu opens a favourite on its route's stop list, with the saved
+// stop marked (#fav=ROUTE|STOP_ID). It waits for the catalogue to load.
+const favLink=decodeURIComponent(location.hash).match(/^#fav=([^|]+)\|(.+)$/);
+let favPending=favLink?state.favourites.find(f=>f.variants.some(v=>v.route===favLink[1]&&v.stop_id===favLink[2]))||null:null;
+if(favPending)state.view='favourites';
+function openPendingFavourite(){if(!favPending||!state.catalogue.length)return;const f=favPending;favPending=null;void openGroup('',f);if(state.nearbyFocus)state.nearbyFocus.saved=true;}
 render();if(state.view==='nearby'&&!state.demo){state.locationRequested=true;locate();}loadCatalogue();

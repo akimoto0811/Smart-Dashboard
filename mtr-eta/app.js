@@ -187,3 +187,7 @@ function install(){translate();navigate(state.view);
  void loadCSVData();void loadCoords();
 }
 install();
+// The dashboard menu opens a favourite station in the Journey planner as the
+// destination (#to=LINE|STATION); Locate me still fills in From.
+{const to=decodeURIComponent(location.hash).match(/^#to=([A-Z]{3})\|([A-Z]{3})$/);
+ if(to&&LINES[to[1]]&&D(to[1]).some(s=>s[0]===to[2])){$('fareToLine').value=to[1];fillStations('To',to[2]);renderFare();navigate('fares');}}
