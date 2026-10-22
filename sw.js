@@ -6,7 +6,7 @@
      the apps use for timetables, catalogues and version checks) go to the
      network first and fall back to the saved copy when offline.
    - Live arrival APIs on other sites are never touched. */
-const CACHE = 'hk-dashboard-v1';
+const CACHE = 'hk-dashboard-v2';
 const PRECACHE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/apple-touch-icon.png',
   './shared/transit.css', './tram-eta/', './tram-eta/tram-data.json', './ferry-eta/', './ferry-eta/ferry-data.json'];
 
@@ -42,9 +42,13 @@ async function saved(request) {
 self.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== location.origin) return;
-  const fresh = request.cache === 'no-store' || request.cache === 'no-cache' || request.cache === 'reload';
+  // Pages always try the network first, so a new release shows on the next
+  // open (and the ?v= reload never lands on the old saved page again).
+  const fresh = request.mode === 'navigate' || request.cache === 'no-store' || request.cache === 'no-cache' || request.cache === 'reload';
   if (fresh) {
-    event.respondWith(fetch(request).then(r => save(request, r)).catch(async () => (await saved(request)) || Response.error()));
+    // no-cache: check with GitHub Pages too, instead of Safari's 10-minute copy.
+    const live = request.mode === 'navigate' ? new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' }) : request;
+    event.respondWith(fetch(live).then(r => save(request, r)).catch(async () => (await saved(request)) || Response.error()));
     return;
   }
   // Open instantly from the saved copy, and update it for next time.
