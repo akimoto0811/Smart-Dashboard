@@ -903,6 +903,11 @@ function orderJourneyStops(clusters){
  // operator-native stop seq. Native seq is retained on each variant for ETAs.
  return sortable.map(({s},index)=>({...s,stopNumber:index+1,totalStops:sortable.length}));
 }
+// Bring a stop row into view by scrolling only the route dialog, not the page
+// behind it (Safari's scrollIntoView also moved the page and hid the header).
+function scrollToStop(row){if(!row)return;const modal=row.closest('.modal');
+ for(let el=row.parentElement;el;el=el===modal?null:el.parentElement){if(el.scrollHeight<=el.clientHeight+1||getComputedStyle(el).overflowY==='visible')continue;
+  el.scrollTop+=row.getBoundingClientRect().top-el.getBoundingClientRect().top-el.clientHeight/3;}}
 function dialog(title){$('#modalTitle').textContent=title;$('#modalScrim').classList.remove('hidden');$('#modalBody').innerHTML='<p class="hint loading">Loading…</p>';const panel=$('#modalScrim .modal');if(panel)panel.scrollTop=0;}
 function closeDialog(){state.dialogToken++;if(stopObserver){stopObserver.disconnect();stopObserver=null;}state.expandedStopKey=null;state.nearbyFocus=null;state.routeRetry=null;$('#modalScrim').classList.add('hidden');state.currentGroup=null;state.currentStop=null;}
 // Nearby's ETA-first card is a route entry, not an isolated ETA dialog.
@@ -971,7 +976,7 @@ async function openGroup(key,nearbyCard=null){
   if(focusIndex>=0)state.expandedStopKey=stopKey(state.verified[focusIndex]);
   drawStopPicker(token);void resolveStopDetails(data,group,token);
   void loadStopFares().then(()=>{if(token===state.dialogToken)drawStopPicker(token);});
-  if(focusIndex>=0){$(`#modalBody [data-stop-index="${focusIndex}"]`)?.scrollIntoView({block:'center'});void updateRowETA(focusIndex,token);}
+  if(focusIndex>=0){scrollToStop($(`#modalBody [data-stop-index="${focusIndex}"]`));void updateRowETA(focusIndex,token);}
  }catch(e){if(token===state.dialogToken)$('#modalBody').innerHTML='<div class="notice">Cannot verify route stops: '+esc(e.message)+'</div><button class="ghost-button" data-action="retryRoute">Try again</button>';}
 }
 

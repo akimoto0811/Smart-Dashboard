@@ -147,3 +147,12 @@ button,input,select {touch-action:manipulation}
 .nearby-more{width:100%;border:0;border-bottom:1px solid var(--line);background:none;color:var(--mint);font-size:12px;font-weight:700;padding:10px 0;text-align:left}
 .nearby-live-card{padding:9px 0}
 .home-link{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 15px 0 10px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:13px;font-size:13px;font-weight:700;text-decoration:none;margin:-10px 0 18px}.home-link svg{width:17px;height:17px;fill:none;stroke:var(--mint);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.home-link:active{transform:scale(.96)}
+
+/* Route dialog: keep the route name at the top while the stop list scrolls. */
+.modal-head{position:sticky;top:-20px;z-index:3;background:var(--panel);margin:-20px -20px 10px;padding:20px 20px 10px}
+/* Upcoming arrivals: the same compact boxes as the MTR, Tram and Ferry apps. */
+.eta-inline,.eta-large{display:flex;flex-wrap:nowrap;gap:8px;align-items:stretch}
+.eta-large{margin:12px 0}
+.eta-inline-chip,.eta-large .eta-chip{flex:1 1 0;min-width:0;max-width:calc((100% - 16px)/3);padding:7px 6px;text-align:center;border:1px solid var(--line);background:var(--panel2);border-radius:13px}
+.eta-inline-chip strong,.eta-large .eta-chip strong{display:block;font-size:15px;font-weight:800;color:var(--mint);font-variant-numeric:tabular-nums}
+.eta-inline-chip small,.eta-large .eta-chip small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
