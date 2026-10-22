@@ -44,3 +44,4 @@ h1{font-size:28px;letter-spacing:-1.2px;margin:0;line-height:1.1;font-weight:780
 .foot{color:var(--muted);font-size:11px;line-height:1.55;margin-top:16px;text-align:center}
 @media(min-width:650px){.shell{padding-top:48px}h1{font-size:36px}}
 @media(max-width:350px){.tiles{gap:6px}.icon{width:42px;height:42px}.name{font-size:12px}}
+.weather{margin:-2px 0 12px;min-height:40px}
