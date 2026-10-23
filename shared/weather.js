@@ -64,9 +64,10 @@ async function load(force){
 }
 function loadAreas(){if(areas)return;areas=[];
  fetch(PLACES).then(r=>r.ok?r.json():[]).then(a=>{areas=Array.isArray(a)?a:[];draw();}).catch(()=>{});}
-function areaName(){if(!here||!areas?.length)return '';let best=null,bd=2.5;
- for(const a of areas){const d=km(here,[a[2],a[3]]);if(d<bd){bd=d;best=a;}}
- return best?best[lang()==='tc'?1:0]:'';}
+// Towns and districts (Mong Kok, To Kwa Wan) first; a smaller named place only when none is near.
+function areaName(){if(!here||!areas?.length)return '';
+ const near=(kinds,max)=>{let best=null,bd=max;for(const a of areas){if(!kinds.includes(a[4]))continue;const d=km(here,[a[2],a[3]]);if(d<bd){bd=d;best=a;}}return best;};
+ const best=near('ts',2.5)||near('qn',1);return best?best[lang()==='tc'?1:0]:'';}
 function km(a,b){const r=x=>x*Math.PI/180,h=Math.sin(r(b[0]-a[0])/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(r(b[1]-a[1])/2)**2;return 12742*Math.asin(Math.sqrt(h));}
 function current(c){
  const temps=c.rh?.temperature?.data||[],names=c.rhEn?.temperature?.data||temps;let pick=-1;
