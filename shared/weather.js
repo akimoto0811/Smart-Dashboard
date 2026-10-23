@@ -62,18 +62,25 @@ function current(c){
  const t=temps[pick];
  return {temp:t?.value,place:t?.place,near:!!here,icon:ICON[c.rh?.icon?.[0]]||'🌡️',hum:c.rh?.humidity?.data?.[0]?.value,uv:c.rh?.uvindex?.data?.[0],updated:c.rh?.updateTime};
 }
-function warnings(c){return Object.values(c.warn||{}).filter(w=>w&&w.code&&w.actionCode!=='CANCEL').map(w=>{const s=SHORT[w.code];
- return {code:w.code,name:w.name,short:Array.isArray(s)?s[lang()==='tc'?1:0]:s||w.name,severe:SEVERE.test(w.code)};});}
+// The summary gives the colour or signal number apart from the name ("Red" + "Fire Danger Warning"); put them together.
+const DIR={NE:['North East','東北'],SE:['South East','東南'],NW:['North West','西北'],SW:['South West','西南']};
+function fullName(w,tc){const m=/^TC(\d+)(NE|SE|NW|SW)?$/.exec(w.code);
+ if(m&&!/\d/.test(w.name))return tc?`${w.name} ${m[1]}號${m[2]?' '+DIR[m[2]][1]:''}`:`${w.name} No. ${m[1]}${m[2]?' '+DIR[m[2]][0]:''}`;
+ const ty=w.type&&!String(w.name).includes(w.type)?w.type:'';return ty?(tc?ty+w.name:ty+' '+w.name):w.name;}
+function warnings(c){const tc=lang()==='tc';return Object.values(c.warn||{}).filter(w=>w&&w.code&&w.actionCode!=='CANCEL').map(w=>{const s=SHORT[w.code];
+ return {code:w.code,name:fullName(w,tc),short:Array.isArray(s)?s[tc?1:0]:s||w.name,severe:SEVERE.test(w.code)};});}
 const hhmm=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleTimeString('en-GB',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit'});};
 
 function pillHTML(){const t=TEXT[lang()],c=cache[lang()];
  if(!c||!c.rh)return `<span class="wx-ic">🌡️</span><span>${esc(c?.failed?t.fail:t.loading)}</span>`;
- const n=current(c),w=warnings(c);
+ const n=current(c),w=warnings(c),menu=!!document.getElementById('weather');
  // Two lines: the reading on top, where it was taken underneath.
+ // The menu has room for every warning's full name on a line of its own; the apps' pill shows a short label.
  const top=`<span class="wx-line"><b>${esc(n.temp??'–')}°</b>`+(n.hum!=null?`<span class="wx-dim">💧${esc(n.hum)}%</span>`:'')+
-  (w.length?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'')+`</span>`;
+  (w.length&&!menu?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'')+`</span>`;
  const where=`<span class="wx-line wx-where">${n.near&&n.place?'📍 '+esc(n.place):esc(t.city)}</span>`;
- return `<span class="wx-ic">${n.icon}</span><span class="wx-lines">${top}${where}</span>`;}
+ const warns=w.length&&menu?`<span class="wx-line wx-warnlist">${w.map(x=>`<span class="wx-warn${x.severe?' severe':''}">⚠️ ${esc(x.name)}</span>`).join('')}</span>`:'';
+ return `<span class="wx-ic">${n.icon}</span><span class="wx-lines">${top}${where}${warns}</span>`;}
 function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p class="wx-p">${esc(c?.failed?t.fail:t.loading)}</p>`;
  const n=current(c),w=warnings(c),days=(c.fnd?.weatherForecast||[]).slice(0,3);
  return `<div class="wx-now"><span class="wx-big">${n.icon}</span><div><div class="wx-temp">${esc(n.temp??'–')}°C</div><div class="wx-dim">${esc((n.near?t.near+' · ':'')+(n.place||''))}</div></div>
@@ -87,7 +94,7 @@ const STYLE=`.wx-row{display:flex;align-items:center;justify-content:space-betwe
 .wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:3px 11px 3px 9px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
 .wx-pill b{font-weight:800}.wx-lines{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;overflow:hidden}.wx-line{display:flex;align-items:center;gap:6px;max-width:100%;line-height:1.1}.wx-where{color:#93a0b9;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}#weather .wx-where{font-size:12px}.wx-ic{font-size:16px;line-height:1}.wx-place{overflow:hidden;text-overflow:ellipsis;min-width:0}.wx-dim{color:#93a0b9}
 .wx-warn{background:#3a2c12;border:1px solid #8a6a24;color:#ffd98c;border-radius:99px;padding:3px 7px;font-size:10.5px;font-weight:800}.wx-warn.severe{background:#3a1a1e;border-color:#a14450;color:#ff9aa5}
-#weather .wx-pill{width:100%;max-width:none;justify-content:flex-start;padding:10px 13px;border-radius:16px;font-size:14px}#weather .wx-pill .wx-more{margin-left:auto;color:#6cdea4;font-size:12px;font-weight:700}
+#weather .wx-pill{width:100%;max-width:none;justify-content:flex-start;padding:10px 13px;border-radius:16px;font-size:14px}#weather .wx-warnlist{flex-wrap:wrap;margin-top:3px}#weather .wx-warnlist .wx-warn{white-space:normal;line-height:1.25;font-size:12px}#weather .wx-pill .wx-more{margin-left:auto;color:#6cdea4;font-size:12px;font-weight:700}
 .wx-panel{position:fixed;z-index:50;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 64px);width:min(92vw,420px);background:#131d30;border:1px solid #33415e;border-radius:20px;padding:14px 15px 12px;color:#f0f4fc;box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:13px}
 .wx-now{display:flex;align-items:center;gap:11px}.wx-big{font-size:34px}.wx-temp{font-size:26px;font-weight:800;letter-spacing:-.5px}.wx-facts{margin-left:auto;text-align:right;display:flex;flex-direction:column;gap:3px;font-size:12px;color:#93a0b9}.wx-facts b{color:#f0f4fc}
 .wx-warns{display:flex;flex-wrap:wrap;gap:6px;margin:11px 0 2px;font-size:12px}.wx-p{margin:10px 0 0;line-height:1.45;color:#c9d3e5}.wx-p b{color:#f0f4fc}
