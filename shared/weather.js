@@ -20,9 +20,9 @@ const ICON={50:'☀️',51:'🌤️',52:'⛅',53:'🌦️',54:'🌦️',60:'☁�
  70:'🌙',71:'🌙',72:'🌙',73:'🌙',74:'🌙',75:'🌙',76:'☁️',77:'🌙',80:'💨',81:'🏜️',82:'💧',83:'🌫️',84:'🌫️',85:'🌫️',90:'🔥',91:'🌡️',92:'🍃',93:'🥶'};
 const TEXT={
  en:{title:'Hong Kong weather',near:'Near you',hum:'Humidity',uv:'UV',next:'Next days',src:'Hong Kong Observatory',updated:'updated',none:'No warnings in force',
-  rain:'Rain',fail:'Weather unavailable',loading:'Weather…',close:'Close'},
+  rain:'Rain',fail:'Weather unavailable',loading:'Weather…',close:'Close',city:'Hong Kong · Observatory'},
  tc:{title:'香港天氣',near:'你附近',hum:'濕度',uv:'紫外線',next:'未來數天',src:'香港天文台',updated:'更新',none:'現時沒有警告',
-  rain:'降雨',fail:'未能取得天氣',loading:'天氣…',close:'關閉'}};
+  rain:'降雨',fail:'未能取得天氣',loading:'天氣…',close:'關閉',city:'香港 · 天文台'}};
 // Short labels for the pill; the panel shows the Observatory's full names.
 const SHORT={TC1:'T1',TC3:'T3',TC8NE:'T8',TC8SE:'T8',TC8NW:'T8',TC8SW:'T8',TC9:'T9',TC10:'T10',WRAINA:['Amber rain','黃雨'],WRAINR:['Red rain','紅雨'],WRAINB:['Black rain','黑雨'],
  WTS:['Thunderstorm','雷暴'],WHOT:['Very hot','酷熱'],WCOLD:['Cold','寒冷'],WFIREY:['Fire (yellow)','黃色火災'],WFIRER:['Fire (red)','紅色火災'],WFROST:['Frost','霜凍'],
@@ -33,11 +33,20 @@ const lang=()=>(document.documentElement.lang||'').startsWith('zh')?'tc':'en';
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const read=()=>{try{return JSON.parse(localStorage.getItem(CACHE))||{}}catch{return {}}};
 let cache=read(),here=null,loading=null,open=false;
+// Where you are, shared by every app: the last position any of them found
+// (kept 30 minutes), so the nearest station shows without asking again.
+const HERE='dashboard_here';
+try{const h=JSON.parse(localStorage.getItem(HERE));if(h&&Date.now()-h.at<30*60000)here=[h.lat,h.lng];}catch{}
+function remember(p){here=[p.coords.latitude,p.coords.longitude];
+ try{localStorage.setItem(HERE,JSON.stringify({lat:here[0],lng:here[1],at:Date.now()}));}catch{}if(pill)draw();}
+if(navigator.geolocation){const g=navigator.geolocation;
+ for(const k of ['getCurrentPosition','watchPosition']){const f=g[k]?.bind(g);if(f)g[k]=(ok,err,opt)=>f(p=>{remember(p);ok?.(p);},err,opt);}}
 
 async function get(type,l){const r=await fetch(API+type+'&lang='+l,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return r.json();}
 async function load(force){
+ // Let a fetch already running finish first: it may be for the other language.
+ while(loading)await loading;
  const l=lang(),c=cache[l];if(!force&&c&&Date.now()-c.at<EVERY)return;
- if(loading)return loading;
  loading=(async()=>{try{
   // English current readings are always fetched: their station names find the nearest one.
   const [rh,rhEn,flw,fnd,warn]=await Promise.all([get('rhrread',l),l==='en'?null:get('rhrread','en'),get('flw',l),get('fnd',l),get('warnsum',l)]);
@@ -63,7 +72,7 @@ function pillHTML(){const t=TEXT[lang()],c=cache[lang()];
  // Two lines: the reading on top, where it was taken underneath.
  const top=`<span class="wx-line"><b>${esc(n.temp??'–')}°</b>`+(n.hum!=null?`<span class="wx-dim">💧${esc(n.hum)}%</span>`:'')+
   (w.length?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'')+`</span>`;
- const where=n.place?`<span class="wx-line wx-where">📍 ${esc(n.place)}</span>`:'';
+ const where=`<span class="wx-line wx-where">${n.near&&n.place?'📍 '+esc(n.place):esc(t.city)}</span>`;
  return `<span class="wx-ic">${n.icon}</span><span class="wx-lines">${top}${where}</span>`;}
 function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p class="wx-p">${esc(c?.failed?t.fail:t.loading)}</p>`;
  const n=current(c),w=warnings(c),days=(c.fnd?.weatherForecast||[]).slice(0,3);
@@ -108,7 +117,7 @@ function toggle(on){open=on;document.querySelectorAll('.wx-panel,.wx-shade').for
  document.body.append(shade,p);void refresh(false);}
 async function refresh(force){await load(force);draw();}
 async function locate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state!=='granted')return;}catch{return;}
- navigator.geolocation.getCurrentPosition(p=>{here=[p.coords.latitude,p.coords.longitude];draw();},()=>{},{maximumAge:300000,timeout:15000});}
+ navigator.geolocation.getCurrentPosition(()=>{},()=>{},{maximumAge:300000,timeout:15000});}
 
 function start(){if(!mount())return;draw();void refresh(false);void locate();
  new MutationObserver(()=>{draw();void refresh(false);}).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
