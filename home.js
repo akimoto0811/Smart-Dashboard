@@ -197,11 +197,17 @@ function texts(){
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
 }
 function refresh(){renderNearby();renderFavs();}
+// On open, a quick rough fix (wifi or phone network) shows something at once, then a GPS fix
+// replaces it. A rougher answer never replaces a sharper one.
+let acc=Infinity;
 function locate(auto){
  if(!navigator.geolocation){locState='fail';renderNearby();return;}
  if(!here){locState='locating';renderNearby();}
- navigator.geolocation.getCurrentPosition(p=>{here=[p.coords.latitude,p.coords.longitude];locState='ok';renderNearby();},
-  e=>{if(!here){locState=e.code===1?'denied':'fail';renderNearby();}},{enableHighAccuracy:!auto,timeout:12000,maximumAge:auto?120000:30000});
+ if(!auto)acc=Infinity;
+ const take=p=>{const a=p.coords.accuracy||5000;if(here&&a>acc)return;acc=a;here=[p.coords.latitude,p.coords.longitude];locState='ok';renderNearby();};
+ if(auto)navigator.geolocation.getCurrentPosition(take,()=>{},{enableHighAccuracy:false,timeout:8000,maximumAge:60000});
+ navigator.geolocation.getCurrentPosition(take,
+  e=>{if(!here){locState=e.code===1?'denied':'fail';renderNearby();}},{enableHighAccuracy:true,timeout:15000,maximumAge:auto?20000:0});
 }
 async function autoLocate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state==='denied'){locState='denied';renderNearby();return;}}catch{}locate(true);}
 
