@@ -11,7 +11,8 @@ const pick=op=>{const l=all.filter(s=>s.operator===op);const out=[];for(let i=0;
 const near=(lat,lng)=>all.filter(s=>Math.hypot(s.lat-lat,s.lng-lng)<0.004);
 const sample=[...pick('CTB'),...pick('CTB').map((x,i,a)=>all.filter(s=>s.operator==='CTB')[i*37+11]).filter(Boolean),...near(22.3075,114.26)];
 const norm=x=>String(x||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-const enTc=new Map();for(const [tc,en] of doc.destinations||[])if(en&&tc&&!enTc.has(norm(en)))enTc.set(norm(en),tc);
+const enTc=new Map();const base=x=>String(x||'').replace(/\s*[\(（](via|經)[^\)）]*[\)）]\s*$/i,'');
+for(const [tc,en] of doc.destinations||[])if(en&&tc){for(const [k,v] of [[norm(en),tc],[norm(base(en)),base(tc)]])if(k&&!enTc.has(k))enTc.set(k,v);}
 const rl=await get('https://rt.data.gov.hk/v2/transport/citybus/route/CTB');console.log('ROUTELIST',rl?.data?.length,JSON.stringify(rl?.data?.[0]));
 let added=0;for(const r of rl?.data||[]){for(const [en,tc] of [[r.dest_en,r.dest_tc],[r.orig_en,r.orig_tc]])if(en&&tc&&!enTc.has(norm(en))){enTc.set(norm(en),tc);added++;}}console.log('added',added);
 let ctbTotal=0,ctbHit=0;const misses=new Map();
