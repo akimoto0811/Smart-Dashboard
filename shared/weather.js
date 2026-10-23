@@ -41,7 +41,7 @@ try{const h=JSON.parse(localStorage.getItem(HERE));if(h&&Date.now()-h.at<24*3600
 function remember(p){here=[p.coords.latitude,p.coords.longitude];
  try{localStorage.setItem(HERE,JSON.stringify({lat:here[0],lng:here[1],at:Date.now()}));}catch{}if(pill)draw();}
 if(navigator.geolocation){const g=navigator.geolocation;
- for(const k of ['getCurrentPosition','watchPosition']){const f=g[k]?.bind(g);if(f)g[k]=(ok,err,opt)=>f(p=>{remember(p);ok?.(p);},err,opt);}}
+ for(const k of ['getCurrentPosition','watchPosition']){const f=g[k]?.bind(g);if(f)try{g[k]=(ok,err,opt)=>f(p=>{remember(p);ok?.(p);},err,opt);}catch{}}}
 
 async function get(type,l){const r=await fetch(API+type+'&lang='+l,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return r.json();}
 async function load(force){
@@ -124,8 +124,10 @@ function toggle(on){open=on;document.querySelectorAll('.wx-panel,.wx-shade').for
  const p=document.createElement('div');p.className='wx-panel';p.setAttribute('role','dialog');p.setAttribute('aria-label',TEXT[lang()].title);p.innerHTML=panelHTML();
  document.body.append(shade,p);void refresh(false);}
 async function refresh(force){await load(force);draw();}
-async function locate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state!=='granted')return;}catch{return;}
- navigator.geolocation.getCurrentPosition(()=>{},()=>{},{maximumAge:300000,timeout:15000});}
+// Ask for a fresh position on every open (each app asks on open too, so this adds no new prompt);
+// only a refusal stops it. Safari often reports 'prompt' even after you allowed it.
+async function locate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state==='denied')return;}catch{}
+ navigator.geolocation?.getCurrentPosition(remember,()=>{},{maximumAge:120000,timeout:15000});}
 
 function start(){if(!mount())return;draw();void refresh(false);void locate();
  new MutationObserver(()=>{draw();void refresh(false);}).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
