@@ -1,0 +1,30 @@
+name: Build Hong Kong area names
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - tools/make_places.py
+      - .github/workflows/places-data.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Build hk-places.json from OpenStreetMap
+        run: python3 tools/make_places.py
+      - name: Commit area names
+        run: |
+          git add -N shared/hk-places.json
+          if git diff --quiet -- shared/hk-places.json; then echo "Unchanged"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add shared/hk-places.json
+          git commit -m "Build Hong Kong area names"
+          git push
