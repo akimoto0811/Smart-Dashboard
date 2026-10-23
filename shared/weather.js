@@ -38,7 +38,10 @@ let cache=read(),here=null,loading=null,open=false;
 // until a fresh one arrives), so the nearest station shows without asking again.
 const HERE='dashboard_here';
 try{const h=JSON.parse(localStorage.getItem(HERE));if(h&&Date.now()-h.at<24*3600000)here=[h.lat,h.lng];}catch{}
-function remember(p){here=[p.coords.latitude,p.coords.longitude];
+// A rough fix (from wifi or the phone network) never replaces a sharper one taken in the last 2 minutes.
+let fix={acc:Infinity,at:0};
+function remember(p){const acc=p.coords.accuracy||5000;if(acc>fix.acc&&Date.now()-fix.at<120000)return;
+ fix={acc,at:Date.now()};here=[p.coords.latitude,p.coords.longitude];
  try{localStorage.setItem(HERE,JSON.stringify({lat:here[0],lng:here[1],at:Date.now()}));}catch{}if(pill)draw();}
 if(navigator.geolocation){const g=navigator.geolocation;
  for(const k of ['getCurrentPosition','watchPosition']){const f=g[k]?.bind(g);if(f)try{g[k]=(ok,err,opt)=>f(p=>{remember(p);ok?.(p);},err,opt);}catch{}}}
@@ -127,7 +130,7 @@ async function refresh(force){await load(force);draw();}
 // Ask for a fresh position on every open (each app asks on open too, so this adds no new prompt);
 // only a refusal stops it. Safari often reports 'prompt' even after you allowed it.
 async function locate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state==='denied')return;}catch{}
- navigator.geolocation?.getCurrentPosition(remember,()=>{},{maximumAge:120000,timeout:15000});}
+ navigator.geolocation?.getCurrentPosition(remember,()=>{},{enableHighAccuracy:true,maximumAge:30000,timeout:20000});}
 
 function start(){if(!mount())return;draw();void refresh(false);void locate();
  new MutationObserver(()=>{draw();void refresh(false);}).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
