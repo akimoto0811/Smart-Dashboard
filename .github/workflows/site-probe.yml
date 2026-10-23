@@ -5,11 +5,13 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - run: |
-          for B in https://smart-dashboard.ty-project.workers.dev; do
-            for p in / /bus-eta/ /shared/move.js?v=1.0.1; do
-              printf "%s%s " "$B" "$p"; curl -sS -m 30 -o /dev/null -w '%{http_code} %{time_total} %{size_download}\n' "$B$p" || echo fail
-            done
+          for i in $(seq 1 55); do
+            c=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://smart-dashboard.ty-project.workers.dev/ 2>/dev/null || true)
+            echo "$(date -u +%H:%M:%S) $c"
+            if [ "$c" = 200 ]; then curl -sS -o /dev/null -w 'bus %{http_code}\n' https://smart-dashboard.ty-project.workers.dev/bus-eta/; exit 0; fi
+            sleep 30
           done
-          true
+          exit 1
