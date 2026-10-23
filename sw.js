@@ -6,7 +6,7 @@
      the apps use for timetables, catalogues and version checks) go to the
      network first and fall back to the saved copy when offline.
    - Live arrival APIs on other sites are never touched. */
-const CACHE = 'hk-dashboard-v2';
+const CACHE = 'hk-dashboard-v2';  // keep: renaming throws away every saved page
 const PRECACHE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/apple-touch-icon.png',
   './shared/transit.css', './tram-eta/', './tram-eta/tram-data.json', './ferry-eta/', './ferry-eta/ferry-data.json'];
 
@@ -48,7 +48,16 @@ self.addEventListener('fetch', event => {
   if (fresh) {
     // no-cache: check with GitHub Pages too, instead of Safari's 10-minute copy.
     const live = request.mode === 'navigate' ? new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' }) : request;
-    event.respondWith(fetch(live).then(r => save(request, r)).catch(async () => (await saved(request)) || Response.error()));
+    const network = fetch(live).then(r => save(request, r));
+    event.respondWith((async () => {
+      // On weak signal the network can hang without failing, so after a few
+      // seconds open the saved page instead and keep updating it behind.
+      const cached = await saved(request);
+      if (!cached) return network.catch(() => Response.error());
+      event.waitUntil(network.catch(() => {}));
+      const slow = new Promise(resolve => setTimeout(() => resolve(cached), request.mode === 'navigate' ? 2500 : 4000));
+      return Promise.race([network.catch(() => cached), slow]);
+    })());
     return;
   }
   // Open instantly from the saved copy, and update it for next time.
