@@ -8,7 +8,7 @@ const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const PREFS='tram_prefs';
 // Address of the Cloudflare Worker from tools/tram-proxy (e.g. 'https://hk-tram.example.workers.dev').
 // Leave empty to run without live tram times.
-const TRAM_PROXY='';
+const TRAM_PROXY='https://tram-proxy.akimoto0811-apple.workers.dev';
 
 const TEXT={
  en:{home:'Dashboard',eyebrow:'HONG KONG · SMART DASHBOARD',heading:'Tram ETA',badge:'ROUTES & FARES',fromLabel:'From',toLabel:'To',locate:'Locate me',locating:'Finding you…',
