@@ -11,7 +11,7 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / 'shared' / 'hk-places.json'
 QUERY = """[out:json][timeout:120];
-area["ISO3166-1"="HK"][admin_level=2]->.hk;
+area["ISO3166-1"="HK"]->.hk;
 (node(area.hk)["place"~"^(town|suburb|quarter|neighbourhood)$"];
  way(area.hk)["place"~"^(town|suburb|quarter|neighbourhood)$"];
  relation(area.hk)["place"~"^(town|suburb|quarter|neighbourhood)$"];);
@@ -33,7 +33,9 @@ def fetch():
 
 CJK = re.compile(r'[一-鿿]')
 places = {}
-for e in fetch():
+elements = fetch()
+print(len(elements), 'OpenStreetMap places')
+for e in elements:
     t = e.get('tags', {})
     lat, lng = (e.get('lat'), e.get('lon')) if 'lat' in e else (e.get('center', {}).get('lat'), e.get('center', {}).get('lon'))
     if lat is None:

@@ -7,6 +7,10 @@
 (()=>{
 const API='https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=';
 const CACHE='hk_weather_v1',EVERY=10*60000;
+// Named areas (Mong Kok, To Kwa Wan…) from OpenStreetMap, built by tools/make_places.py.
+// The pill names the one nearest to you; your position never leaves the phone.
+const PLACES=new URL('hk-places.json',document.currentScript?.src||location.href).href;
+let areas=null;
 // Approximate positions of the Observatory's temperature stations, to show
 // the reading nearest to you when location is already allowed.
 const STATIONS={"King's Park":[22.312,114.173],'Hong Kong Observatory':[22.302,114.174],'Wong Chuk Hang':[22.248,114.174],'Ta Kwu Ling':[22.529,114.157],
@@ -58,6 +62,11 @@ async function load(force){
  }catch{if(cache[l])cache[l].failed=true;else cache[l]={failed:true};}finally{loading=null;}})();
  await loading;
 }
+function loadAreas(){if(areas)return;areas=[];
+ fetch(PLACES).then(r=>r.ok?r.json():[]).then(a=>{areas=Array.isArray(a)?a:[];draw();}).catch(()=>{});}
+function areaName(){if(!here||!areas?.length)return '';let best=null,bd=2.5;
+ for(const a of areas){const d=km(here,[a[2],a[3]]);if(d<bd){bd=d;best=a;}}
+ return best?best[lang()==='tc'?1:0]:'';}
 function km(a,b){const r=x=>x*Math.PI/180,h=Math.sin(r(b[0]-a[0])/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(r(b[1]-a[1])/2)**2;return 12742*Math.asin(Math.sqrt(h));}
 function current(c){
  const temps=c.rh?.temperature?.data||[],names=c.rhEn?.temperature?.data||temps;let pick=-1;
@@ -82,17 +91,17 @@ function pillHTML(){const t=TEXT[lang()],c=cache[lang()];
  // The menu has room for every warning's full name on a line of its own; the apps' pill shows a short label.
  const top=`<span class="wx-line"><b>${esc(n.temp??'–')}°</b>`+(n.hum!=null?`<span class="wx-dim">💧${esc(n.hum)}%</span>`:'')+
   (w.length&&!menu?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'')+`</span>`;
- const where=`<span class="wx-line wx-where">${n.near&&n.place?'📍 '+esc(n.place):esc(t.city)}</span>`;
+ const a=areaName(),where=`<span class="wx-line wx-where">${a?'📍 '+esc(a):esc(t.city)}</span>`;
  const warns=w.length&&menu?`<span class="wx-line wx-warnlist">${w.map(x=>`<span class="wx-warn${x.severe?' severe':''}">⚠️ ${esc(x.name)}</span>`).join('')}</span>`:'';
  return `<span class="wx-ic">${n.icon}</span><span class="wx-lines">${top}${where}${warns}</span>`;}
 function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p class="wx-p">${esc(c?.failed?t.fail:t.loading)}</p>`;
  const n=current(c),w=warnings(c),days=(c.fnd?.weatherForecast||[]).slice(0,3);
- return `<div class="wx-now"><span class="wx-big">${n.icon}</span><div><div class="wx-temp">${esc(n.temp??'–')}°C</div><div class="wx-dim">${esc((n.near?t.near+' · ':'')+(n.place||''))}</div></div>
+ return `<div class="wx-now"><span class="wx-big">${n.icon}</span><div><div class="wx-temp">${esc(n.temp??'–')}°C</div><div class="wx-dim">${esc(areaName()?'📍 '+areaName():t.city)}</div></div>
   <div class="wx-facts">${n.hum!=null?`<span>${esc(t.hum)} <b>${esc(n.hum)}%</b></span>`:''}${n.uv?`<span>${esc(t.uv)} <b>${esc(n.uv.value)}</b> ${esc(n.uv.desc)}</span>`:''}</div></div>`+
   `<div class="wx-warns">${w.length?w.map(x=>`<span class="wx-warn${x.severe?' severe':''}">${esc(x.name)}</span>`).join(''):`<span class="wx-dim">${esc(t.none)}</span>`}</div>`+
   (c.flw?.forecastDesc?`<p class="wx-p"><b>${esc(c.flw.forecastPeriod||'')}</b><br>${esc(c.flw.forecastDesc)}</p>`:'')+
   (days.length?`<div class="wx-days">${days.map(d=>`<div><small>${esc(l==='tc'?d.week:d.week.slice(0,3))}</small><span>${ICON[d.ForecastIcon]||''}</span><b>${esc(d.forecastMintemp?.value)}–${esc(d.forecastMaxtemp?.value)}°</b><small>${esc(t.rain)} ${esc(d.PSR)}</small></div>`).join('')}</div>`:'')+
-  `<div class="wx-src">${esc(t.src)} · ${esc(t.updated)} ${esc(hhmm(n.updated))}</div>`;}
+  `<div class="wx-src">${esc(t.src)}${n.place?' · '+esc(l==='tc'?n.place+'測站':n.place+' station'):''} · ${esc(t.updated)} ${esc(hhmm(n.updated))}</div>`;}
 
 const STYLE=`.wx-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.wx-row>.home-link{margin-bottom:0}
 .wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:3px 11px 3px 9px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
@@ -132,7 +141,7 @@ async function refresh(force){await load(force);draw();}
 async function locate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state==='denied')return;}catch{}
  navigator.geolocation?.getCurrentPosition(remember,()=>{},{enableHighAccuracy:true,maximumAge:30000,timeout:20000});}
 
-function start(){if(!mount())return;draw();void refresh(false);void locate();
+function start(){if(!mount())return;loadAreas();draw();void refresh(false);void locate();
  new MutationObserver(()=>{draw();void refresh(false);}).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open)toggle(false);});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh(false);});
