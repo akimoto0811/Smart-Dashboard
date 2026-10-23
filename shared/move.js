@@ -8,7 +8,7 @@
    Only favourites and settings travel, and only on the first jump: cached
    bus data in the link made it too long for Safari to open. */
 (() => {
-  const NEW = 'https://smart-dashboard.akimoto0811-apple.workers.dev', OLD = 'akimoto0811.github.io', BASE = '/Smart-Dashboard';
+  const NEW = 'https://smart-dashboard.ty-projects.workers.dev', OLD = 'akimoto0811.github.io', BASE = '/Smart-Dashboard';
   const KEY = 'dashboard_move', DONE = 'dashboard_moved';
   const CARRY = ['dashboard_lang', 'hkbus_favourites_v2', 'hkbus_lang', 'hkbus_start_page', 'mtr_eta_v1_prefs', 'tram_prefs', 'ferry_prefs'];
   if (location.hostname === OLD) {
