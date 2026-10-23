@@ -1,0 +1,8 @@
+# Cloudflare Pages cache rules (GitHub Pages ignores this file).
+# Pages, scripts and styles: the phone must ask for a new copy every time it
+# opens one, so a release shows up on the next open instead of up to 10 min later.
+/*
+  Cache-Control: no-cache
+# Icons rarely change.
+/icons/*
+  Cache-Control: public, max-age=604800
