@@ -9,9 +9,9 @@ jobs:
     steps:
       - run: |
           for i in $(seq 1 55); do
-            c=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://smart-dashboard.ty-project.workers.dev/ 2>/dev/null || true)
+            c=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://smart-dashboard.ty-projects.workers.dev/ 2>/dev/null || true)
             echo "$(date -u +%H:%M:%S) $c"
-            if [ "$c" = 200 ]; then curl -sS -o /dev/null -w 'bus %{http_code}\n' https://smart-dashboard.ty-project.workers.dev/bus-eta/; exit 0; fi
+            if [ "$c" = 200 ]; then curl -sS -o /dev/null -w 'bus %{http_code}\n' https://smart-dashboard.ty-projects.workers.dev/bus-eta/; exit 0; fi
             sleep 30
           done
           exit 1
