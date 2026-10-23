@@ -1,0 +1,15 @@
+name: Site probe
+on:
+  push:
+    branches: [claude/site-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for B in https://smart-dashboard.ty-project.workers.dev https://ty-project.workers.dev https://smart-dashboard.akimoto0811-apple.workers.dev; do
+            for p in / /bus-eta/ /shared/move.js?v=1.0.1; do
+              printf "%s%s " "$B" "$p"; curl -sS -m 30 -o /dev/null -w '%{http_code} %{time_total} %{size_download}\n' "$B$p" || echo fail
+            done
+          done
+          curl -sSI https://smart-dashboard.ty-project.workers.dev/ | grep -iE 'cache-control|^HTTP'
