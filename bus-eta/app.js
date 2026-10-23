@@ -43,7 +43,7 @@ const UI_ZH = {
  'All':'全部','Inbound':'回程','Outbound':'去程','Long Win':'龍運','Citybus':'城巴','KMB':'九巴',
  'Checking live arrivals':'正在查詢即時到站時間','Upcoming buses':'即將到站巴士','Checking ETA…':'正在查詢到站時間…','No upcoming ETA':'暫無預計到站班次','ETA unavailable':'無法取得到站資料',
  'Nearby bus services':'附近巴士路線','Locate me':'定位','⌖ Locate me':'⌖ 定位','☆ Add favourite':'☆ 加入收藏','★ Remove favourite':'★ 移除收藏','↻ Refresh':'↻ 重新整理','Routes near you':'附近路線',
- 'No routes yet. Allow Safari location access while in Hong Kong.':'暫未找到路線，請在香港使用時允許 Safari 讀取位置。',
+ 'No routes yet. Allow location access while in Hong Kong.':'暫未找到路線，請在香港使用時允許讀取位置。',
  'Checking your location… Tap Locate me if needed':'正在定位… 如有需要請按「定位」',
  'Illustration only':'僅供示範','ETA':'到站時間','No ETA':'暫無預報','Error':'錯誤','Due':'即將到站',
  'Saved bus stops':'已收藏巴士站','Your chosen route, direction and boarding stop':'已儲存的路線、方向及上車站',
@@ -58,7 +58,7 @@ const UI_ZH = {
  'Last generated':'資料更新日期','Hong Kong time':'香港時間','Not loaded':'尚未載入',
  'Stop data is used for discovery. Official operator lists verify boarding stops.':'巴士站資料用於搜尋；上車站以巴士公司的官方路線資料核實。',
  'Import catalogue JSON':'匯入巴士站 JSON','Favourites backup':'收藏備份',
- 'Favourites are stored in this browser. Export a backup before clearing Safari data or changing devices.':'收藏只儲存在此瀏覽器。清除 Safari 資料或更換裝置前請先匯出備份。',
+ 'Favourites are stored in this browser. Export a backup before clearing browser data or changing devices.':'收藏只儲存在此瀏覽器。清除瀏覽器資料或更換裝置前請先匯出備份。',
  'Import favourites':'匯入收藏','Export favourites':'匯出收藏','Diagnostics':'系統診斷','Diagnostics & data':'系統診斷及資料',
  'Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.':'即時到站資料由九巴及城巴公開 API 提供；如有連線錯誤，會顯示錯誤而非猜測到站時間。',
  'Clear ETA cache':'清除到站快取','Clear favourites':'清除所有收藏',
@@ -81,9 +81,9 @@ const UI_ZH = {
  'min':'分鐘','now':'即將抵站','saved':'項已收藏',
  'Bus arrivals':'巴士到站','Your favourites':'我的收藏',
  'Import failed:':'匯入失敗：','Import catalogue failed:':'資料庫匯入失敗：',
- 'GPS is not available. Open the HTTPS dashboard in Safari.':'無法使用 GPS，請以 Safari 開啟 HTTPS 網址。',
- 'Requesting iPhone location…':'正在取得 iPhone 位置…',
- 'Safari location permission denied.':'Safari 位置權限已被拒絕。',
+ 'Location is not available in this browser.':'此瀏覽器無法使用定位功能。',
+ 'Finding your location…':'正在取得你的位置…',
+ 'Location permission denied. Allow location for this site in your browser settings.':'位置權限已被拒絕，請在瀏覽器設定中允許此網站讀取位置。',
  'Current position unavailable.':'無法取得目前位置。','Location request timed out.':'定位逾時。',
  'You appear to be outside Hong Kong; Nearby needs a Hong Kong GPS position.':'目前位置似乎不在香港；附近路線功能只支援香港。',
  'Location found. Loading the stop catalogue…':'已定位，正在載入巴士站資料…',
@@ -362,7 +362,7 @@ function nearby(){
  const active=live.length?nearbyStopSectionsHTML(live):'';
  const other=remaining.length?`<div class="nearby-list-label nearby-secondary-label">${scan?.running||nearbyETAState.officialKMBPending?(state.lang==='tc'?'正在查詢其他巴士站':'Checking other stops'):(state.lang==='tc'?'其他附近路線 · 暫無預計到站時間':'Other nearby routes · No ETA confirmed at nearby stops')}</div>${groupRows(remaining.slice(0,75),'nearby')}`:'';
  const pending=!live.length&&(scan?.running||nearbyETAState.officialKMBPending)?`<div class="nearby-wait">${state.lang==='tc'?'正在查詢附近各巴士公司的即時到站資料…':'Checking official ETAs for nearby boarding stops…'}</div>`:'';
- const rows=active+pending+other||(state.position?`<div class="empty">${state.lang==='tc'?'此範圍內沒有已確認的巴士站。':'No verified nearby stops found in this radius.'}</div>`:'<div class="empty">No routes yet. Allow Safari location access while in Hong Kong.</div>');
+ const rows=active+pending+other||(state.position?`<div class="empty">${state.lang==='tc'?'此範圍內沒有已確認的巴士站。':'No verified nearby stops found in this radius.'}</div>`:'<div class="empty">No routes yet. Allow location access while in Hong Kong.</div>');
  return `<div class="nearby-toolbar"><select class="select" id="radiusSelect" aria-label="Search radius">${[300,450,800,1200].map(n=>`<option value="${n}" ${n===state.radius?'selected':''}>${n} m</option>`).join('')}</select>${state.position?`<span class="nearby-gps">GPS ±${Math.round(state.position.accuracy)}m</span>`:''}${inventoryWarning}<button class="nearby-locate" data-action="locate"><span aria-hidden="true">⌖</span> <span>Locate me</span></button></div>${progress}<div class="section-sub nearby-summary">${esc(subtitle)}</div><div class="card no-gap nearby-results">${rows}</div>`;
 }
 const minutesLabel=at=>{const m=etaMinutes(at);return m<=1?(state.lang==='tc'?'即將抵達':'Arriving'):m+(state.lang==='tc'?' 分鐘':' min');};
@@ -398,7 +398,7 @@ function nearbyStopSectionsHTML(cards){
 function settings(){return `${line('Preferences','Choose your language and start page')}
  <div class="card settings-preferences"><div class="card-title">Interface language</div><div class="settings-options"><button class="ghost-button ${state.lang==='en'?'selected-language':''}" data-action="setLanguage" data-value="en">English</button><button class="ghost-button ${state.lang==='tc'?'selected-language':''}" data-action="setLanguage" data-value="tc">繁體中文</button></div>
  <div class="card-title settings-label">Start page</div><div class="settings-options settings-start">${[['nearby','Nearby'],['favourites','Favourites'],['browse','Routes']].map(([id,label])=>`<button class="ghost-button ${state.startPage===id?'selected-language':''}" data-action="setStartPage" data-value="${id}">${label}</button>`).join('')}</div><p class="small-note">This page opens when you launch the dashboard. Your choice is saved on this device.</p></div>
- <div class="card"><div class="card-title">Favourites backup</div><p class="small-note">Favourites are stored in this browser. Export a backup before clearing Safari data or changing devices.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">${fmt(state.favourites.length)} saved</p></div>
+ <div class="card"><div class="card-title">Favourites backup</div><p class="small-note">Favourites are stored in this browser. Export a backup before clearing browser data or changing devices.</p><div class="buttons"><button class="primary-button" data-action="importFav">Import favourites</button><button class="ghost-button" data-action="exportFav">Export favourites</button></div><p class="small-note">${fmt(state.favourites.length)} saved</p></div>
  <details class="card diagnostics-card"><summary>Diagnostics &amp; data</summary>
  <div class="diag-section"><div class="card-title">Diagnostics</div><p class="small-note">Live ETA uses the KMB and Citybus public APIs. API errors are shown rather than guessed.</p><div class="buttons"><button class="ghost-button" data-action="clearETAs">Clear ETA cache</button><button class="ghost-button" data-action="clearFav">Clear favourites</button></div></div> <div class="diag-section"><div class="card-title">Joint-route stop mapping</div><p class="small-note">${state.stopLinkStatus.loaded?(state.lang==='tc'?`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} 條聯營路線 · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} 組跨公司巴士站配對 · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} 條未能確認`:`${fmt(state.stopLinkStatus.coverage.mapped_routes)} / ${fmt(state.stopLinkStatus.coverage.discovered_joint_routes)} joint routes · ${fmt(state.stopLinkStatus.coverage.accepted_stop_pairs)} operator stop pairs · ${fmt(state.stopLinkStatus.coverage.unresolved_routes)} unresolved`):(state.lang==='tc'?'尚未載入配對資料 — 使用保守配對模式 (':'Not loaded — using conservative matching (')+esc(state.stopLinkStatus.error||'Check stop-links.json')+')'}</p></div>
  <div class="diag-section"><div class="card-title">Bus catalogue</div><div class="stat-grid"><div class="stat"><div class="label">Route-stop records</div><div class="value">${fmt(state.catalogue.length)}</div></div><div class="stat"><div class="label">Routes / directions</div><div class="value">${fmt(state.groups.length)}</div></div><div class="stat"><div class="label">Last generated</div><div class="value muted" style="font-size:16px">${esc(state.catalogueDate||'Not loaded')}</div></div><div class="stat"><div class="label">Hong Kong time</div><div class="value muted" style="font-size:16px">${esc(hkTime())}</div></div></div><p class="small-note">Stop data is used for discovery. Official operator lists verify boarding stops.</p><button class="ghost-button" data-action="importCat">Import catalogue JSON</button></div></details>
@@ -1285,11 +1285,11 @@ function populateNearby(){if(!state.position||!state.catalogue.length)return;
  banner('');render();startNearbyETAScan();void ensureOfficialKMBStops();
 }
 function locate(){if(state.demo){banner('Switch to Live mode to use GPS.');return;}
- if(!navigator.geolocation){banner('GPS is not available. Open the HTTPS dashboard in Safari.');return;}
- banner('Requesting iPhone location…');navigator.geolocation.getCurrentPosition(pos=>{const {latitude:lat,longitude:lng,accuracy}=pos.coords;state.position={lat,lng,accuracy};
+ if(!navigator.geolocation){banner('Location is not available in this browser.');return;}
+ banner('Finding your location…');navigator.geolocation.getCurrentPosition(pos=>{const {latitude:lat,longitude:lng,accuracy}=pos.coords;state.position={lat,lng,accuracy};
  if(!state.catalogue.length){banner('Location found. Loading the stop catalogue…');render();return;}
  populateNearby();
- },error=>banner(({1:'Safari location permission denied.',2:'Current position unavailable.',3:'Location request timed out.'})[error.code]||error.message),{enableHighAccuracy:true,timeout:12000,maximumAge:20000});}
+ },error=>banner(({1:'Location permission denied. Allow location for this site in your browser settings.',2:'Current position unavailable.',3:'Location request timed out.'})[error.code]||error.message),{enableHighAccuracy:true,timeout:12000,maximumAge:20000});}
 async function indexedGet(key){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
  return await new Promise((yes,no)=>{const tx=db.transaction('data');const q=tx.objectStore('data').get(key);q.onsuccess=()=>yes(q.result);q.onerror=()=>no(q.error);tx.oncomplete=()=>db.close();});}catch{return null;}}
 async function indexedPut(key,value){try{const db=await new Promise((yes,no)=>{const req=indexedDB.open('hk-bus-eta-dashboard',1);req.onupgradeneeded=()=>req.result.createObjectStore('data');req.onsuccess=()=>yes(req.result);req.onerror=()=>no(req.error)});
