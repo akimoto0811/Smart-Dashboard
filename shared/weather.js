@@ -20,9 +20,9 @@ const ICON={50:'☀️',51:'🌤️',52:'⛅',53:'🌦️',54:'🌦️',60:'☁�
  70:'🌙',71:'🌙',72:'🌙',73:'🌙',74:'🌙',75:'🌙',76:'☁️',77:'🌙',80:'💨',81:'🏜️',82:'💧',83:'🌫️',84:'🌫️',85:'🌫️',90:'🔥',91:'🌡️',92:'🍃',93:'🥶'};
 const TEXT={
  en:{title:'Hong Kong weather',near:'Near you',hum:'Humidity',uv:'UV',next:'Next days',src:'Hong Kong Observatory',updated:'updated',none:'No warnings in force',
-  rain:'Rain',fail:'Weather unavailable',loading:'Weather…',close:'Close'},
+  rain:'Rain',fail:'Weather unavailable',loading:'Weather…',close:'Close',city:'Hong Kong · Observatory'},
  tc:{title:'香港天氣',near:'你附近',hum:'濕度',uv:'紫外線',next:'未來數天',src:'香港天文台',updated:'更新',none:'現時沒有警告',
-  rain:'降雨',fail:'未能取得天氣',loading:'天氣…',close:'關閉'}};
+  rain:'降雨',fail:'未能取得天氣',loading:'天氣…',close:'關閉',city:'香港 · 天文台'}};
 // Short labels for the pill; the panel shows the Observatory's full names.
 const SHORT={TC1:'T1',TC3:'T3',TC8NE:'T8',TC8SE:'T8',TC8NW:'T8',TC8SW:'T8',TC9:'T9',TC10:'T10',WRAINA:['Amber rain','黃雨'],WRAINR:['Red rain','紅雨'],WRAINB:['Black rain','黑雨'],
  WTS:['Thunderstorm','雷暴'],WHOT:['Very hot','酷熱'],WCOLD:['Cold','寒冷'],WFIREY:['Fire (yellow)','黃色火災'],WFIRER:['Fire (red)','紅色火災'],WFROST:['Frost','霜凍'],
@@ -33,11 +33,20 @@ const lang=()=>(document.documentElement.lang||'').startsWith('zh')?'tc':'en';
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const read=()=>{try{return JSON.parse(localStorage.getItem(CACHE))||{}}catch{return {}}};
 let cache=read(),here=null,loading=null,open=false;
+// Where you are, shared by every app: the last position any of them found
+// (kept 30 minutes), so the nearest station shows without asking again.
+const HERE='dashboard_here';
+try{const h=JSON.parse(localStorage.getItem(HERE));if(h&&Date.now()-h.at<30*60000)here=[h.lat,h.lng];}catch{}
+function remember(p){here=[p.coords.latitude,p.coords.longitude];
+ try{localStorage.setItem(HERE,JSON.stringify({lat:here[0],lng:here[1],at:Date.now()}));}catch{}if(pill)draw();}
+if(navigator.geolocation){const g=navigator.geolocation;
+ for(const k of ['getCurrentPosition','watchPosition']){const f=g[k]?.bind(g);if(f)g[k]=(ok,err,opt)=>f(p=>{remember(p);ok?.(p);},err,opt);}}
 
 async function get(type,l){const r=await fetch(API+type+'&lang='+l,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return r.json();}
 async function load(force){
+ // Let a fetch already running finish first: it may be for the other language.
+ while(loading)await loading;
  const l=lang(),c=cache[l];if(!force&&c&&Date.now()-c.at<EVERY)return;
- if(loading)return loading;
  loading=(async()=>{try{
   // English current readings are always fetched: their station names find the nearest one.
   const [rh,rhEn,flw,fnd,warn]=await Promise.all([get('rhrread',l),l==='en'?null:get('rhrread','en'),get('flw',l),get('fnd',l),get('warnsum',l)]);
@@ -60,8 +69,11 @@ const hhmm=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleTimeString('en-G
 function pillHTML(){const t=TEXT[lang()],c=cache[lang()];
  if(!c||!c.rh)return `<span class="wx-ic">🌡️</span><span>${esc(c?.failed?t.fail:t.loading)}</span>`;
  const n=current(c),w=warnings(c);
- return `<span class="wx-ic">${n.icon}</span><b>${esc(n.temp??'–')}°</b>`+(n.hum!=null?`<span class="wx-dim">💧${esc(n.hum)}%</span>`:'')+(document.getElementById('weather')&&n.place?`<span class="wx-dim wx-place">${esc(n.place)}</span>`:'')+
-  (w.length?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'');}
+ // Two lines: the reading on top, where it was taken underneath.
+ const top=`<span class="wx-line"><b>${esc(n.temp??'–')}°</b>`+(n.hum!=null?`<span class="wx-dim">💧${esc(n.hum)}%</span>`:'')+
+  (w.length?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'')+`</span>`;
+ const where=`<span class="wx-line wx-where">${n.near&&n.place?'📍 '+esc(n.place):esc(t.city)}</span>`;
+ return `<span class="wx-ic">${n.icon}</span><span class="wx-lines">${top}${where}</span>`;}
 function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p class="wx-p">${esc(c?.failed?t.fail:t.loading)}</p>`;
  const n=current(c),w=warnings(c),days=(c.fnd?.weatherForecast||[]).slice(0,3);
  return `<div class="wx-now"><span class="wx-big">${n.icon}</span><div><div class="wx-temp">${esc(n.temp??'–')}°C</div><div class="wx-dim">${esc((n.near?t.near+' · ':'')+(n.place||''))}</div></div>
@@ -72,8 +84,8 @@ function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p
   `<div class="wx-src">${esc(t.src)} · ${esc(t.updated)} ${esc(hhmm(n.updated))}</div>`;}
 
 const STYLE=`.wx-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.wx-row>.home-link{margin-bottom:0}
-.wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:7px 11px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
-.wx-pill b{font-weight:800}.wx-ic{font-size:16px;line-height:1}.wx-place{overflow:hidden;text-overflow:ellipsis;min-width:0}.wx-dim{color:#93a0b9}
+.wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:3px 11px 3px 9px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
+.wx-pill b{font-weight:800}.wx-lines{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;overflow:hidden}.wx-line{display:flex;align-items:center;gap:6px;max-width:100%;line-height:1.1}.wx-where{color:#93a0b9;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}#weather .wx-where{font-size:12px}.wx-ic{font-size:16px;line-height:1}.wx-place{overflow:hidden;text-overflow:ellipsis;min-width:0}.wx-dim{color:#93a0b9}
 .wx-warn{background:#3a2c12;border:1px solid #8a6a24;color:#ffd98c;border-radius:99px;padding:3px 7px;font-size:10.5px;font-weight:800}.wx-warn.severe{background:#3a1a1e;border-color:#a14450;color:#ff9aa5}
 #weather .wx-pill{width:100%;max-width:none;justify-content:flex-start;padding:10px 13px;border-radius:16px;font-size:14px}#weather .wx-pill .wx-more{margin-left:auto;color:#6cdea4;font-size:12px;font-weight:700}
 .wx-panel{position:fixed;z-index:50;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 64px);width:min(92vw,420px);background:#131d30;border:1px solid #33415e;border-radius:20px;padding:14px 15px 12px;color:#f0f4fc;box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:13px}
@@ -91,7 +103,7 @@ function mount(){
  if(spot)spot.appendChild(pill);
  else if(back){const row=document.createElement('div'),cs=getComputedStyle(back);row.className='wx-row';
   // The row takes over the button's spacing and the pill matches its height.
-  row.style.margin=cs.margin;pill.style.height=cs.height;pill.style.borderRadius=cs.borderRadius;back.style.margin='0';
+  row.style.margin=cs.margin;pill.style.minHeight=cs.height;pill.style.borderRadius=cs.borderRadius;back.style.margin='0';
   back.parentNode.insertBefore(row,back);row.append(back,pill);}
  else return false;
  pill.addEventListener('click',()=>toggle(true));
@@ -105,7 +117,7 @@ function toggle(on){open=on;document.querySelectorAll('.wx-panel,.wx-shade').for
  document.body.append(shade,p);void refresh(false);}
 async function refresh(force){await load(force);draw();}
 async function locate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state!=='granted')return;}catch{return;}
- navigator.geolocation.getCurrentPosition(p=>{here=[p.coords.latitude,p.coords.longitude];draw();},()=>{},{maximumAge:300000,timeout:15000});}
+ navigator.geolocation.getCurrentPosition(()=>{},()=>{},{maximumAge:300000,timeout:15000});}
 
 function start(){if(!mount())return;draw();void refresh(false);void locate();
  new MutationObserver(()=>{draw();void refresh(false);}).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
