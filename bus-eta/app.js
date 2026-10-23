@@ -179,13 +179,16 @@ function normalize(input){
  return {operator,route,direction,stop_id,service_type,name:String(input.name||input.stop_name||'Bus stop'),name_en:String(input.name_en||''),name_tc:String(input.name_tc||input.name||''),shared_stop_id:String(input.shared_stop_id||''),destination:String(input.destination||input.dest||''),destination_en:String(input.destination_en||''),destination_tc:String(input.destination_tc||input.destination||''),lat,lng};
 }
 const localizedStop = x => state.lang==='en'?(x.name_en||(/[^\u0000-\u007F]/.test(x.name||'')?'Loading English name…':x.name)||'Stop name unavailable'):(x.name_tc||x.name||'巴士站');
-// Citybus ETAs often arrive without a Chinese destination; fall back to the
-// catalogue's Chinese name for that route direction so 中文 mode stays Chinese.
+// Citybus ETAs give the destination in English only. Look up its Chinese name by
+// matching the English name in the catalogue; with no match the English one shows.
 let destinationTCIndex=null,destinationTCSource=null;
-function catalogueDestinationTC(operator,route,direction){
+const destinationKey=x=>String(x||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const withoutVia=x=>String(x||'').replace(/\s*[(（](via|經)[^)）]*[)）]\s*$/i,'');
+function catalogueDestinationTC(nameEN){
  if(destinationTCSource!==state.catalogue){destinationTCSource=state.catalogue;destinationTCIndex=new Map();
-  for(const it of state.catalogue){const k=it.operator+'|'+it.route+'|'+it.direction;if(it.destination_tc&&!destinationTCIndex.has(k))destinationTCIndex.set(k,it.destination_tc);}}
- return destinationTCIndex.get(operator+'|'+route+'|'+direction)||'';
+  for(const it of state.catalogue){const tc=it.destination_tc,en=it.destination_en;if(!tc||!en)continue;
+   for(const [k,v] of [[destinationKey(en),tc],[destinationKey(withoutVia(en)),withoutVia(tc)]])if(k&&!destinationTCIndex.has(k))destinationTCIndex.set(k,v);}}
+ return destinationTCIndex.get(destinationKey(nameEN))||destinationTCIndex.get(destinationKey(withoutVia(nameEN)))||'';
 }
 const localizedDestination = x => state.lang==='en'?(x.destination_en||x.destination||'Destination'):(x.destination_tc||x.destination||'目的地');
 function enrichedRecord(input,extra){return {...input,...extra,name_en:extra.name_en||input.name_en||'',name_tc:extra.name_tc||input.name_tc||input.name||''};}
@@ -1110,7 +1113,7 @@ function parseNearbyETA(it,json){
   const key=route+'|'+direction;
   if(!map.has(key))map.set(key,[]);
   map.get(key).push({at,operator:clean(x.co)==='LWB'?'LWB':it.operator,stop_id:it.stop_id,route,direction,
-    service_type:String(x.service_type||'1'),destination_en:String(x.dest_en||x.dest||''),destination_tc:String(x.dest_tc||'')||catalogueDestinationTC(it.operator,route,direction)});
+    service_type:String(x.service_type||'1'),destination_en:String(x.dest_en||x.dest||''),destination_tc:String(x.dest_tc||'')||catalogueDestinationTC(x.dest_en||x.dest)});
  }
  for(const a of map.values())a.sort((x,y)=>x.at-y.at);
  return map;

@@ -60,7 +60,10 @@ async function nextTrains(line,sta){
 function trainText(list){return list.map(x=>`${T().to} ${stName(x.dest)} ${x.min<=0?T().due:x.min+' '+T().min}`).join(' · ');}
 
 // ---------------------------------------------------------------- bus
-let busStops=null,busDest=new Map();
+let busStops=null;
+const busNameTC=new Map(),routeTC=new Map();
+const nameKey=x=>String(x||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const noVia=x=>String(x||'').replace(/\s*[(（](via|經)[^)）]*[)）]\s*$/i,'');
 async function busCatalogue(){
  // Reuse the catalogue the Bus app already saved, else download it once.
  const fromDB=await new Promise(yes=>{try{const req=indexedDB.open('hk-bus-eta-dashboard',1);
@@ -70,8 +73,8 @@ async function busCatalogue(){
  return fromDB||load('bus-eta/catalogue-compact.json',{cache:'default'});}
 async function busData(){
  if(busStops)return busStops;const doc=await busCatalogue(),seen=new Map();
- // Citybus arrivals often leave out the Chinese destination: take it from the catalogue.
- for(const [op,route,dir,,flat] of doc.variants){const d=doc.destinations?.[flat[flat.length-1]],k=op+'|'+route+'|'+dir;if(d&&!busDest.has(k))busDest.set(k,d);}
+ // Citybus arrivals give the destination in English only: find its Chinese name by matching the English one.
+ for(const [tc,en] of doc.destinations||[])if(tc&&en)for(const [k,v] of [[nameKey(en),tc],[nameKey(noVia(en)),noVia(tc)]])if(k&&!busNameTC.has(k))busNameTC.set(k,v);
  for(const [op,,,,flat] of doc.variants)for(let i=0;i+2<flat.length;i+=3){
   const id=doc.stop_ids[flat[i]],loc=doc.locations[flat[i+1]];if(!loc||!Number.isFinite(loc[2]))continue;
   const operator=op==='CTB'?'CTB':'KMB',key=operator+'|'+id;
@@ -81,9 +84,16 @@ const busStopName=s=>{const n=(tc()?s.tc:s.en)||s.tc||s.en||'';return n.replace(
 async function stopArrivals(s){
  const url=s.operator==='CTB'?`https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/${encodeURIComponent(s.id)}`:`https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${encodeURIComponent(s.id)}`;
  const j=await getJSON(url),now=Date.now();
- return (j.data||[]).map(x=>{const c=busDest.get(s.operator+'|'+x.route+'|'+x.dir)||[];
-  return {route:x.route,at:Date.parse(x.eta||''),dest:(tc()?x.dest_tc||c[0]||x.dest_en||x.dest||c[1]:x.dest_en||x.dest||c[1]||x.dest_tc||c[0])||''};})
+ return (j.data||[]).map(x=>{const en=String(x.dest_en||x.dest||'');
+  return {route:x.route,dir:x.dir,stop:s,at:Date.parse(x.eta||''),en,dest:tc()?x.dest_tc||busNameTC.get(nameKey(en))||busNameTC.get(nameKey(noVia(en)))||'':en||x.dest_tc||''};})
   .filter(x=>Number.isFinite(x.at)&&x.at>now-30000);}
+async function fillChinese(list){
+ // Last resort for Citybus: its per-route arrivals do carry the Chinese destination.
+ await Promise.all(list.filter(a=>!a.dest).map(async a=>{
+  const k=a.stop.operator+'|'+a.stop.id+'|'+a.route+'|'+a.dir;
+  if(!routeTC.has(k)&&a.stop.operator==='CTB')routeTC.set(k,getJSON(`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(a.stop.id)}/${encodeURIComponent(a.route)}`,5000)
+   .then(j=>(j.data||[]).find(x=>x.dir===a.dir&&x.dest_tc)?.dest_tc||'').catch(()=>''));
+  a.dest=(await routeTC.get(k))||a.en;}));}
 
 // ---------------------------------------------------------------- tram & ferry
 const tramName=s=>(tc()?s.tc:s.en).replace(/ Terminus$/,'').replace(/總站$/,'')+(/Terminus|總站/.test(s.en+s.tc)?(tc()?'總站':' Terminus'):'');
@@ -118,6 +128,7 @@ async function renderNearby(){
   if(!near.length){slot(0,'');return;}
   const all=(await Promise.all(near.map(x=>stopArrivals(x.s).catch(()=>[])))).flat().sort((a,b)=>a.at-b.at);
   const firsts=[],seen=new Set();for(const a of all){if(seen.has(a.route))continue;seen.add(a.route);firsts.push(a);if(firsts.length===3)break;}
+  if(tc())await fillChinese(firsts);
   const head=`${busStopName(near[0].s)} · ${dist(near[0].d)}`;
   slot(0,row({kind:'bus',href:'bus-eta/',title:head,sub:firsts.length?firsts.map(a=>`${a.route}${a.dest?` ${t.to} ${a.dest}`:''} ${mins(a.at)||t.due}${mins(a.at)?' '+t.min:''}`).join(' · '):t.none,when:firsts.length?whenHTML(mins(firsts[0].at),firsts[0].route):'',muted:!firsts.length}));
  }catch{slot(0,row({kind:'bus',href:'bus-eta/',title:t.bus,sub:t.offline,muted:true}));}})());
