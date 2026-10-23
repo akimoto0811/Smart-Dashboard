@@ -60,8 +60,11 @@ const hhmm=s=>{const d=new Date(s);return isNaN(d)?'':d.toLocaleTimeString('en-G
 function pillHTML(){const t=TEXT[lang()],c=cache[lang()];
  if(!c||!c.rh)return `<span class="wx-ic">🌡️</span><span>${esc(c?.failed?t.fail:t.loading)}</span>`;
  const n=current(c),w=warnings(c);
- return `<span class="wx-ic">${n.icon}</span><b>${esc(n.temp??'–')}°</b>`+(n.hum!=null?`<span class="wx-dim">💧${esc(n.hum)}%</span>`:'')+(document.getElementById('weather')&&n.place?`<span class="wx-dim wx-place">${esc(n.place)}</span>`:'')+
-  (w.length?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'');}
+ // Two lines: the reading on top, where it was taken underneath.
+ const top=`<span class="wx-line"><b>${esc(n.temp??'–')}°</b>`+(n.hum!=null?`<span class="wx-dim">💧${esc(n.hum)}%</span>`:'')+
+  (w.length?`<span class="wx-warn${w.some(x=>x.severe)?' severe':''}">${esc(w[0].short)}${w.length>1?' +'+(w.length-1):''}</span>`:'')+`</span>`;
+ const where=n.place?`<span class="wx-line wx-where">📍 ${esc(n.place)}</span>`:'';
+ return `<span class="wx-ic">${n.icon}</span><span class="wx-lines">${top}${where}</span>`;}
 function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p class="wx-p">${esc(c?.failed?t.fail:t.loading)}</p>`;
  const n=current(c),w=warnings(c),days=(c.fnd?.weatherForecast||[]).slice(0,3);
  return `<div class="wx-now"><span class="wx-big">${n.icon}</span><div><div class="wx-temp">${esc(n.temp??'–')}°C</div><div class="wx-dim">${esc((n.near?t.near+' · ':'')+(n.place||''))}</div></div>
@@ -72,8 +75,8 @@ function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p
   `<div class="wx-src">${esc(t.src)} · ${esc(t.updated)} ${esc(hhmm(n.updated))}</div>`;}
 
 const STYLE=`.wx-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.wx-row>.home-link{margin-bottom:0}
-.wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:7px 11px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
-.wx-pill b{font-weight:800}.wx-ic{font-size:16px;line-height:1}.wx-place{overflow:hidden;text-overflow:ellipsis;min-width:0}.wx-dim{color:#93a0b9}
+.wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:3px 11px 3px 9px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
+.wx-pill b{font-weight:800}.wx-lines{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;overflow:hidden}.wx-line{display:flex;align-items:center;gap:6px;max-width:100%;line-height:1.1}.wx-where{color:#93a0b9;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}#weather .wx-where{font-size:12px}.wx-ic{font-size:16px;line-height:1}.wx-place{overflow:hidden;text-overflow:ellipsis;min-width:0}.wx-dim{color:#93a0b9}
 .wx-warn{background:#3a2c12;border:1px solid #8a6a24;color:#ffd98c;border-radius:99px;padding:3px 7px;font-size:10.5px;font-weight:800}.wx-warn.severe{background:#3a1a1e;border-color:#a14450;color:#ff9aa5}
 #weather .wx-pill{width:100%;max-width:none;justify-content:flex-start;padding:10px 13px;border-radius:16px;font-size:14px}#weather .wx-pill .wx-more{margin-left:auto;color:#6cdea4;font-size:12px;font-weight:700}
 .wx-panel{position:fixed;z-index:50;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 64px);width:min(92vw,420px);background:#131d30;border:1px solid #33415e;border-radius:20px;padding:14px 15px 12px;color:#f0f4fc;box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:13px}
@@ -91,7 +94,7 @@ function mount(){
  if(spot)spot.appendChild(pill);
  else if(back){const row=document.createElement('div'),cs=getComputedStyle(back);row.className='wx-row';
   // The row takes over the button's spacing and the pill matches its height.
-  row.style.margin=cs.margin;pill.style.height=cs.height;pill.style.borderRadius=cs.borderRadius;back.style.margin='0';
+  row.style.margin=cs.margin;pill.style.minHeight=cs.height;pill.style.borderRadius=cs.borderRadius;back.style.margin='0';
   back.parentNode.insertBefore(row,back);row.append(back,pill);}
  else return false;
  pill.addEventListener('click',()=>toggle(true));
