@@ -9,12 +9,12 @@ const write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
 const TEXT={
  en:{title:'Smart Dashboard',place:'HONG KONG',bus:'Bus',mtr:'MTR',tram:'Tram',ferry:'Ferry',nearby:'Nearby',locate:'Locate me',favs:'Favourites',
   locating:'Finding where you are…',denied:'Turn on location for this site to see what’s near you.',noLocation:'Location unavailable. Tap Locate me to try again.',
-  loading:'Loading…',none:'No arrivals predicted',noBus:'No bus stop within 600 m',min:'min',due:'Due',to:'To',towards:'Towards',
+  loading:'Loading…',none:'No arrivals predicted',noBus:'No bus stop within 600 m',nothingNear:'No bus, MTR, tram or ferry nearby.',min:'min',due:'Due',to:'To',towards:'Towards',
   liveTram:'Open Tram ETA for routes and fares',noSailing:'No more sailings today',tomorrow:'tomorrow',apart:'min apart',offline:'Offline: live times unavailable',
   foot:'Add this page to your Home Screen to open every dashboard from one icon.',saved:n=>`${n} saved`},
  tc:{title:'智能交通資訊',place:'香港',bus:'巴士',mtr:'港鐵',tram:'電車',ferry:'渡輪',nearby:'附近',locate:'定位',favs:'收藏',
   locating:'正在定位…',denied:'請為此網站開啟定位，以查看附近交通。',noLocation:'無法取得位置，請按「定位」再試。',
-  loading:'載入中…',none:'暫時沒有預報班次',noBus:'600 米內沒有巴士站',min:'分鐘',due:'即將到達',to:'往',towards:'往',
+  loading:'載入中…',none:'暫時沒有預報班次',noBus:'600 米內沒有巴士站',nothingNear:'附近沒有巴士、港鐵、電車或渡輪。',min:'分鐘',due:'即將到達',to:'往',towards:'往',
   liveTram:'開啟電車資訊查看路線及車費',noSailing:'今日已無班次',tomorrow:'明天',apart:'分鐘一班',offline:'離線：未能取得實時資料',
   foot:'將此頁加至主畫面，即可從同一圖示開啟所有資訊板。',saved:n=>`已收藏 ${n} 個`}};
 const ICON={
@@ -61,6 +61,9 @@ function trainText(list){return list.map(x=>`${T().to} ${stName(x.dest)} ${x.min
 
 // ---------------------------------------------------------------- bus
 let busStops=null;
+const busNameTC=new Map(),routeTC=new Map();
+const nameKey=x=>String(x||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const noVia=x=>String(x||'').replace(/\s*[(（](via|經)[^)）]*[)）]\s*$/i,'');
 async function busCatalogue(){
  // Reuse the catalogue the Bus app already saved, else download it once.
  const fromDB=await new Promise(yes=>{try{const req=indexedDB.open('hk-bus-eta-dashboard',1);
@@ -70,6 +73,8 @@ async function busCatalogue(){
  return fromDB||load('bus-eta/catalogue-compact.json',{cache:'default'});}
 async function busData(){
  if(busStops)return busStops;const doc=await busCatalogue(),seen=new Map();
+ // Citybus arrivals give the destination in English only: find its Chinese name by matching the English one.
+ for(const [tc,en] of doc.destinations||[])if(tc&&en)for(const [k,v] of [[nameKey(en),tc],[nameKey(noVia(en)),noVia(tc)]])if(k&&!busNameTC.has(k))busNameTC.set(k,v);
  for(const [op,,,,flat] of doc.variants)for(let i=0;i+2<flat.length;i+=3){
   const id=doc.stop_ids[flat[i]],loc=doc.locations[flat[i+1]];if(!loc||!Number.isFinite(loc[2]))continue;
   const operator=op==='CTB'?'CTB':'KMB',key=operator+'|'+id;
@@ -79,7 +84,16 @@ const busStopName=s=>{const n=(tc()?s.tc:s.en)||s.tc||s.en||'';return n.replace(
 async function stopArrivals(s){
  const url=s.operator==='CTB'?`https://rt.data.gov.hk/v1/transport/batch/stop-eta/CTB/${encodeURIComponent(s.id)}`:`https://data.etabus.gov.hk/v1/transport/kmb/stop-eta/${encodeURIComponent(s.id)}`;
  const j=await getJSON(url),now=Date.now();
- return (j.data||[]).map(x=>({route:x.route,at:Date.parse(x.eta||''),dest:tc()?x.dest_tc||x.dest_en:x.dest_en||x.dest_tc})).filter(x=>Number.isFinite(x.at)&&x.at>now-30000);}
+ return (j.data||[]).map(x=>{const en=String(x.dest_en||x.dest||'');
+  return {route:x.route,dir:x.dir,stop:s,at:Date.parse(x.eta||''),en,dest:tc()?x.dest_tc||busNameTC.get(nameKey(en))||busNameTC.get(nameKey(noVia(en)))||'':en||x.dest_tc||''};})
+  .filter(x=>Number.isFinite(x.at)&&x.at>now-30000);}
+async function fillChinese(list){
+ // Last resort for Citybus: its per-route arrivals do carry the Chinese destination.
+ await Promise.all(list.filter(a=>!a.dest).map(async a=>{
+  const k=a.stop.operator+'|'+a.stop.id+'|'+a.route+'|'+a.dir;
+  if(!routeTC.has(k)&&a.stop.operator==='CTB')routeTC.set(k,getJSON(`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(a.stop.id)}/${encodeURIComponent(a.route)}`,5000)
+   .then(j=>(j.data||[]).find(x=>x.dir===a.dir&&x.dest_tc)?.dest_tc||'').catch(()=>''));
+  a.dest=(await routeTC.get(k))||a.en;}));}
 
 // ---------------------------------------------------------------- tram & ferry
 const tramName=s=>(tc()?s.tc:s.en).replace(/ Terminus$/,'').replace(/總站$/,'')+(/Terminus|總站/.test(s.en+s.tc)?(tc()?'總站':' Terminus'):'');
@@ -95,37 +109,43 @@ function sailingWhen(n,now){const t=T();if(!n)return {html:'',sub:t.noSailing};
 
 // ---------------------------------------------------------------- Nearby
 let here=null,locState='idle';
+// Further than this and a stop, station or pier isn't "nearby" (km).
+const NEAR={bus:.6,mtr:1.5,tram:1,ferry:1.5};
+let renders=0;
 async function renderNearby(){
- const t=T(),el=$('nearby');
+ const t=T(),el=$('nearby'),me=++renders;
  if(!here){el.innerHTML=`<div class="empty">${esc(locState==='denied'?t.denied:locState==='fail'?t.noLocation:t.locating)}</div>`;return;}
  const now=hkNow(),rows=[],jobs=[];
  // Each mode fills its own row as soon as its data arrives.
- const slot=(k,html)=>{rows[k]=html;el.innerHTML=rows.filter(Boolean).join('');};
+ // A newer render (a sharper location came in) takes over: this one stops drawing.
+ const slot=(k,html)=>{if(me!==renders)return;rows[k]=html;el.innerHTML=rows.filter(Boolean).join('');};
  slot(0,row({kind:'bus',href:'bus-eta/',title:t.bus,sub:t.loading}));
  slot(1,row({kind:'mtr',href:'mtr-eta/',title:t.mtr,sub:t.loading}));
  slot(2,row({kind:'tram',href:'tram-eta/',title:t.tram,sub:t.loading}));
  slot(3,row({kind:'ferry',href:'ferry-eta/',title:t.ferry,sub:t.loading}));
  jobs.push((async()=>{try{
-  const stops=await busData(),near=stops.map(s=>({s,d:km(here,[s.lat,s.lng])})).filter(x=>x.d<.6).sort((a,b)=>a.d-b.d).slice(0,3);
-  if(!near.length){slot(0,row({kind:'bus',href:'bus-eta/',title:t.bus,sub:t.noBus,muted:true}));return;}
+  const stops=await busData(),near=stops.map(s=>({s,d:km(here,[s.lat,s.lng])})).filter(x=>x.d<NEAR.bus).sort((a,b)=>a.d-b.d).slice(0,3);
+  if(!near.length){slot(0,'');return;}
   const all=(await Promise.all(near.map(x=>stopArrivals(x.s).catch(()=>[])))).flat().sort((a,b)=>a.at-b.at);
   const firsts=[],seen=new Set();for(const a of all){if(seen.has(a.route))continue;seen.add(a.route);firsts.push(a);if(firsts.length===3)break;}
+  if(tc())await fillChinese(firsts);
   const head=`${busStopName(near[0].s)} · ${dist(near[0].d)}`;
-  slot(0,row({kind:'bus',href:'bus-eta/',title:head,sub:firsts.length?firsts.map(a=>`${a.route} ${t.to} ${a.dest} ${mins(a.at)||t.due}${mins(a.at)?' '+t.min:''}`).join(' · '):t.none,when:firsts.length?whenHTML(mins(firsts[0].at),firsts[0].route):'',muted:!firsts.length}));
+  slot(0,row({kind:'bus',href:'bus-eta/',title:head,sub:firsts.length?firsts.map(a=>`${a.route}${a.dest?` ${t.to} ${a.dest}`:''} ${mins(a.at)||t.due}${mins(a.at)?' '+t.min:''}`).join(' · '):t.none,when:firsts.length?whenHTML(mins(firsts[0].at),firsts[0].route):'',muted:!firsts.length}));
  }catch{slot(0,row({kind:'bus',href:'bus-eta/',title:t.bus,sub:t.offline,muted:true}));}})());
  jobs.push((async()=>{try{
   const m=await mtrData();let best=null;
   for(const [c,p] of Object.entries(m.coords)){if(c==='RAC'||!m.linesOf.has(c))continue;const d=km(here,p);if(!best||d<best.d)best={c,d};}
-  if(!best)return;const line=m.linesOf.get(best.c).find(l=>l!=='AEL')||m.linesOf.get(best.c)[0];
+  if(!best||best.d>NEAR.mtr){slot(1,'');return;}const line=m.linesOf.get(best.c).find(l=>l!=='AEL')||m.linesOf.get(best.c)[0];
   const set={key:'mtr_eta_v1_prefs',merge:{line,station:best.c,dir:'UP'}};
   slot(1,row({kind:'mtr',href:'mtr-eta/',title:`${stName(best.c)} · ${dist(best.d)}`,sub:lineName(line),set}));
   try{const list=await nextTrains(line,best.c);
    slot(1,row({kind:'mtr',href:'mtr-eta/',title:`${stName(best.c)} · ${dist(best.d)}`,sub:list.length?trainText(list):t.none,when:list.length?whenHTML(Math.min(...list.map(x=>x.min))):'',muted:!list.length,set}));
   }catch{slot(1,row({kind:'mtr',href:'mtr-eta/',title:`${stName(best.c)} · ${dist(best.d)}`,sub:t.offline,muted:true,set}));}
- }catch{}})());
+ }catch{slot(1,'');}})());
  jobs.push((async()=>{try{
   const d=await load('tram-eta/tram-data.json');let best=null;
   d.stops.forEach((s,i)=>{const k=km(here,[s.lat,s.lng]);if(!best||k<best.d)best={i,d:k};});
+  if(!best||best.d>NEAR.tram){slot(2,'');return;}
   // Stops run west to east, so show the furthest terminus each way.
   let west=null,east=null;for(const r of d.routes)for(const dir of r.dirs){const i=dir.indexOf(best.i);if(i<0||i===dir.length-1)continue;const end=dir[dir.length-1];
    if(end<best.i&&(west==null||end<west))west=end;if(end>best.i&&(east==null||end>east))east=end;}
@@ -136,6 +156,7 @@ async function renderNearby(){
  jobs.push((async()=>{try{
   const d=await load('ferry-eta/ferry-data.json');let best=null;
   for(const [p,v] of Object.entries(d.places)){if(v[1]==null)continue;const k=km(here,[v[1],v[2]]);if(!best||k<best.d)best={p,d:k};}
+  if(!best||best.d>NEAR.ferry){slot(3,'');return;}
   // The soonest sailing from that pier, on any route.
   let pick=null;
   d.services.forEach(s=>s.dirs.forEach((dir,i)=>{if(dir.f!==best.p)return;const n=nextSailing(dir,d,now);if(!n)return;
@@ -146,6 +167,7 @@ async function renderNearby(){
   slot(3,row({kind:'ferry',href:'ferry-eta/',title,sub:`${t.to} ${place(d,pick.dir.t)} · ${tc()?pick.s.tc:pick.s.en}`,when:w.html,set:{key:'ferry_prefs',merge:{service:pick.s.id,dir:pick.i}}}));
  }catch{slot(3,'');}})());
  await Promise.all(jobs);
+ if(me===renders&&!rows.some(Boolean))el.innerHTML=`<div class="empty">${esc(t.nothingNear)}</div>`;
 }
 
 // ---------------------------------------------------------------- Favourites

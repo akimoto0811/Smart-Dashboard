@@ -7,7 +7,7 @@
      network first and fall back to the saved copy when offline.
    - Live arrival APIs on other sites are never touched. */
 const CACHE = 'hk-dashboard-v2';  // keep: renaming throws away every saved page
-const PRECACHE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/apple-touch-icon.png',
+const PRECACHE = ['./', './manifest.webmanifest', './icons/icon-192.png', './icons/apple-touch-icon.png',
   './shared/transit.css', './tram-eta/', './tram-eta/tram-data.json', './ferry-eta/', './ferry-eta/ferry-data.json'];
 
 self.addEventListener('install', event => {
@@ -20,7 +20,15 @@ self.addEventListener('activate', event => {
     .then(() => self.clients.claim()));
 });
 
+// Cloudflare answers /index.html with a redirect to /. Safari refuses a page a
+// service worker hands back with redirects in it, so pass on a plain copy.
+function plain(response) {
+  if (!response || !response.redirected) return response;
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers: response.headers });
+}
+
 async function save(request, response) {
+  response = plain(response);
   if (!response || !response.ok || response.type === 'opaque') return response;
   const cache = await caches.open(CACHE), url = new URL(request.url);
   // Keep one copy per file: drop older ?v= versions of the same path.
@@ -36,7 +44,7 @@ async function save(request, response) {
 
 async function saved(request) {
   const cache = await caches.open(CACHE);
-  return (await cache.match(request)) || (await cache.match(request, { ignoreSearch: true }));
+  return plain((await cache.match(request)) || (await cache.match(request, { ignoreSearch: true })));
 }
 
 self.addEventListener('fetch', event => {
