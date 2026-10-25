@@ -105,7 +105,7 @@ function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p
   (days.length?`<div class="wx-days">${days.map(d=>`<div><small>${esc(l==='tc'?d.week:d.week.slice(0,3))}</small><span>${ICON[d.ForecastIcon]||''}</span><b>${esc(d.forecastMintemp?.value)}–${esc(d.forecastMaxtemp?.value)}°</b><small>${esc(t.rain)} ${esc(d.PSR)}</small></div>`).join('')}</div>`:'')+
   `<div class="wx-src">${esc(t.src)}${n.place?' · '+esc(l==='tc'?n.place+'測站':n.place+' station'):''} · ${esc(t.updated)} ${esc(hhmm(n.updated))}</div>`;}
 
-const STYLE=`.wx-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.wx-row>.home-link{margin-bottom:0}
+const STYLE=`.wx-row{display:flex;align-items:stretch;justify-content:space-between;gap:10px}.wx-row>.home-link{margin-bottom:0;height:auto}
 .wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:3px 11px 3px 9px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
 .wx-pill b{font-weight:800}.wx-lines{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;overflow:hidden}.wx-line{display:flex;align-items:center;gap:6px;max-width:100%;line-height:1.1}.wx-where{color:#93a0b9;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}#weather .wx-where{font-size:12px}.wx-ic{font-size:16px;line-height:1}.wx-place{overflow:hidden;text-overflow:ellipsis;min-width:0}.wx-dim{color:#93a0b9}
 .wx-warn{background:#3a2c12;border:1px solid #8a6a24;color:#ffd98c;border-radius:99px;padding:3px 7px;font-size:10.5px;font-weight:800}.wx-warn.severe{background:#3a1a1e;border-color:#a14450;color:#ff9aa5}
@@ -124,7 +124,7 @@ function mount(){
  const spot=document.getElementById('weather'),back=document.querySelector('.home-link');
  if(spot)spot.appendChild(pill);
  else if(back){const row=document.createElement('div'),cs=getComputedStyle(back);row.className='wx-row';
-  // The row takes over the button's spacing and the pill matches its height.
+  // The row takes over the button's spacing; the button and the pill stretch to the same height.
   row.style.margin=cs.margin;pill.style.minHeight=cs.height;pill.style.borderRadius=cs.borderRadius;back.style.margin='0';
   back.parentNode.insertBefore(row,back);row.append(back,pill);}
  else return false;
