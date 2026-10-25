@@ -1339,7 +1339,7 @@ document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');
  if(action==='clearFav'&&confirm(state.lang==='tc'?UI_ZH['Remove all saved favourites on this browser?']:'Remove all saved favourites on this browser?')){state.favourites=[];persist('hkbus_favourites_v2',[]);banner('Favourites cleared.');render();}
 });
 persist('hkbus_demo',false); // Retire any saved demo preference from earlier versions.
-$('#refreshButton').addEventListener('click',()=>{state.etas.clear();nearbyETAState.cache.clear();state.routeStops.clear();state.routeOrientation.clear();state.routeOrientationPending.clear();persist(ROUTE_DIRECTION_STORAGE,{});state.groups=makeGroups(state.catalogue);banner('Caches refreshed.');render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&state.position){startNearbyETAScan(true);void ensureOfficialKMBStops();}});
+$('#refreshButton').addEventListener('click',()=>{state.etas.clear();nearbyETAState.cache.clear();state.routeStops.clear();state.routeOrientation.clear();state.routeOrientationPending.clear();persist(ROUTE_DIRECTION_STORAGE,{});state.groups=makeGroups(state.catalogue);render();if(state.view==='browse'&&state.query.trim())void ensurePhysicalRoute(clean(state.query));if(state.view==='nearby'&&state.position){startNearbyETAScan(true);void ensureOfficialKMBStops();}});
 $('#closeModal').addEventListener('click',closeDialog);
 $('#modalScrim').addEventListener('click',e=>{if(e.target.id==='modalScrim')closeDialog();});
 window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDialog();});
