@@ -1,5 +1,5 @@
 'use strict';
-/* Tram ETA. Stops, routes, journey times and fares come from the Transport
+/* Tram. Stops, routes, journey times and fares come from the Transport
    Department's open data (tram-data.json, rebuilt weekly). HK Tramways' live
    arrival feed does not allow other websites to read it, so no live times. */
 const $=id=>document.getElementById(id);
@@ -11,7 +11,7 @@ const PREFS='tram_prefs';
 const TRAM_PROXY='';
 
 const TEXT={
- en:{home:'Dashboard',eyebrow:'HONG KONG · SMART DASHBOARD',heading:'Tram ETA',badge:'ROUTES & FARES',fromLabel:'From',toLabel:'To',locate:'Locate me',locating:'Finding you…',
+ en:{home:'Dashboard',eyebrow:'HONG KONG · SMART DASHBOARD',heading:'Tram',badge:'ROUTES & FARES',fromLabel:'From',toLabel:'To',locate:'Locate me',locating:'Finding you…',
   nearest:'Nearest stop',locateFail:'Location unavailable.',locateDenied:'Location permission is off.',journeyTitle:'Your tram trip',etaLabel:'JOURNEY TIME',min:'min',
   towards:'Towards',stops:n=>`${n} stop${n===1?'':'s'}`,adult:'adult',same:'Pick two different stops.',none:'No tram runs directly between these stops.',
   also:'Other trams',liveTitle:'Next trams at this stop',liveNone:'No trams predicted right now.',liveFail:'Live tram times unavailable.',due:'Due',yourWay:'your way',viaRoute:'Route',fare:'Flat fare',

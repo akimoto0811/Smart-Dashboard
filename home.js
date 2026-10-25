@@ -10,7 +10,7 @@ const TEXT={
  en:{title:'Smart Dashboard',place:'HONG KONG',bus:'Bus',mtr:'MTR',tram:'Tram',ferry:'Ferry',nearby:'Nearby',locate:'Locate me',favs:'Favourites',
   locating:'Finding where you are…',denied:'Turn on location for this site to see what’s near you.',noLocation:'Location unavailable. Tap Locate me to try again.',
   loading:'Loading…',none:'No arrivals predicted',noBus:'No bus stop within 600 m',nothingNear:'No bus, MTR, tram or ferry nearby.',min:'min',due:'Due',to:'To',towards:'Towards',
-  liveTram:'Open Tram ETA for routes and fares',noLive:'No live times',noSailing:'No more sailings today',tomorrow:'tomorrow',apart:'min apart',offline:'Offline: live times unavailable',
+  liveTram:'Open Tram for routes and fares',noLive:'No live times',noSailing:'No more sailings today',tomorrow:'tomorrow',apart:'min apart',offline:'Offline: live times unavailable',
   foot:'Add this page to your Home Screen to open every dashboard from one icon.',saved:n=>`${n} saved`},
  tc:{title:'智能交通資訊',place:'香港',bus:'巴士',mtr:'港鐵',tram:'電車',ferry:'渡輪',nearby:'附近',locate:'定位',favs:'收藏',
   locating:'正在定位…',denied:'請為此網站開啟定位，以查看附近交通。',noLocation:'無法取得位置，請按「定位」再試。',
