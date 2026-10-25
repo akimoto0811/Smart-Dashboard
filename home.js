@@ -222,16 +222,25 @@ function refresh(){renderNearby();renderFavs();}
 // On open, a quick rough fix (wifi or phone network) shows something at once, then a GPS fix
 // replaces it. A rougher answer never replaces a sharper one.
 let acc=Infinity;
-function locate(auto){
+function take(p){const a=p.coords.accuracy||5000;if(here&&a>=acc)return;acc=a;here=[p.coords.latitude,p.coords.longitude];locState='ok';renderNearby();}
+const denied=async()=>{try{return (await navigator.permissions?.query({name:'geolocation'}))?.state==='denied';}catch{return false;}};
+function locate(auto,retry=1){
  if(!navigator.geolocation){locState='fail';renderNearby();return;}
  if(!here){locState='locating';renderNearby();}
  if(!auto)acc=Infinity;
- const take=p=>{const a=p.coords.accuracy||5000;if(here&&a>acc)return;acc=a;here=[p.coords.latitude,p.coords.longitude];locState='ok';renderNearby();};
  if(auto)navigator.geolocation.getCurrentPosition(take,()=>{},{enableHighAccuracy:false,timeout:8000,maximumAge:60000});
- navigator.geolocation.getCurrentPosition(take,
-  e=>{if(!here){locState=e.code===1?'denied':'fail';renderNearby();}},{enableHighAccuracy:true,timeout:15000,maximumAge:auto?20000:0});
+ navigator.geolocation.getCurrentPosition(take,async e=>{if(here)return;
+  // Safari can refuse a request made while its "Allow location" question is still showing,
+  // even when you then tap Allow: ask once more unless location really is turned off.
+  if(retry&&!(await denied())){setTimeout(()=>{if(!here)locate(auto,retry-1);},1500);return;}
+  locState=e.code===1?'denied':'fail';renderNearby();},{enableHighAccuracy:true,timeout:15000,maximumAge:auto?20000:0});
 }
-async function autoLocate(){try{if((await navigator.permissions?.query({name:'geolocation'}))?.state==='denied'){locState='denied';renderNearby();return;}}catch{}locate(true);}
+async function autoLocate(){
+ if(await denied()){locState='denied';renderNearby();}else locate(true);
+ // Location turned on later (in the browser's settings): look again.
+ try{const s=await navigator.permissions?.query({name:'geolocation'});if(s)s.onchange=()=>{if(s.state!=='denied'&&!here)locate(true);};}catch{}}
+// Weather also asks for your location: use its answer when it comes first or is sharper.
+addEventListener('dashboard:here',e=>take(e.detail));
 
 // Tapping a nearby or favourite row opens that app on the same stop or route.
 document.addEventListener('click',e=>{const a=e.target.closest('a.row[data-set]');if(!a)return;
@@ -240,7 +249,8 @@ document.querySelectorAll('[data-lang]').forEach(b=>b.addEventListener('click',(
 $('locateBtn').addEventListener('click',()=>locate(false));
 // Back from an app, Safari may show this page from its cache: pick up changes made there.
 addEventListener('pageshow',e=>{if(!e.persisted)return;const l=read('dashboard_lang');if(TEXT[l])lang=l;texts();refresh();});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;
+ if(!here&&(locState==='denied'||locState==='fail'))autoLocate();refresh();});
 setInterval(()=>{if(document.visibilityState==='visible')refresh();},30000);
 
 texts();renderNearby();renderFavs();autoLocate();

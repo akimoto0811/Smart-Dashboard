@@ -46,7 +46,8 @@ try{const h=JSON.parse(localStorage.getItem(HERE));if(h&&Date.now()-h.at<24*3600
 let fix={acc:Infinity,at:0};
 function remember(p){const acc=p.coords.accuracy||5000;if(acc>fix.acc&&Date.now()-fix.at<120000)return;
  fix={acc,at:Date.now()};here=[p.coords.latitude,p.coords.longitude];
- try{localStorage.setItem(HERE,JSON.stringify({lat:here[0],lng:here[1],at:Date.now()}));}catch{}if(pill)draw();}
+ try{localStorage.setItem(HERE,JSON.stringify({lat:here[0],lng:here[1],at:Date.now()}));}catch{}if(pill)draw();
+ try{dispatchEvent(new CustomEvent('dashboard:here',{detail:{coords:{latitude:here[0],longitude:here[1],accuracy:acc}}}));}catch{}}
 if(navigator.geolocation){const g=navigator.geolocation;
  for(const k of ['getCurrentPosition','watchPosition']){const f=g[k]?.bind(g);if(f)try{g[k]=(ok,err,opt)=>f(p=>{remember(p);ok?.(p);},err,opt);}catch{}}}
 
