@@ -1,10 +1,10 @@
 /* Offline support for every dashboard app (scope: the whole site).
-   - Pages, scripts, styles and icons open straight from the phone and are
-     refreshed in the background (each page's own ?v= check then reloads it
-     when a new version is out).
-   - Requests that ask for fresh data (cache: 'no-store' / 'no-cache', which
-     the apps use for timetables, catalogues and version checks) go to the
-     network first and fall back to the saved copy when offline.
+   - Pages, scripts, styles, icons and data files open straight from the phone
+     and are refreshed in the background for next time. Each page's own ?v=
+     check then reloads it when a new version is out, and that reload waits
+     for the network so it lands on the new page.
+   - Data files (timetables, catalogues) change at most weekly, so a saved
+     copy is used at once instead of downloading megabytes on every open.
    - Live arrival APIs on other sites are never touched. */
 const CACHE = 'hk-dashboard-v2';  // keep: renaming throws away every saved page
 const PRECACHE = ['./', './manifest.webmanifest', './icons/icon-192.png', './icons/apple-touch-icon.png',
@@ -42,37 +42,41 @@ async function save(request, response) {
   return response;
 }
 
-async function saved(request) {
+async function saved(request, anyVersion = true) {
   const cache = await caches.open(CACHE);
-  return plain((await cache.match(request)) || (await cache.match(request, { ignoreSearch: true })));
+  return plain((await cache.match(request)) || (anyVersion ? await cache.match(request, { ignoreSearch: true }) : null));
+}
+
+// Waits for the network, but on weak signal (which can hang without failing)
+// hands back the saved copy after a few seconds and keeps updating behind.
+function networkFirst(request, live, wait) {
+  const network = fetch(live).then(r => save(request, r));
+  return (async () => {
+    const cached = await saved(request);
+    if (!cached) return network.catch(() => Response.error());
+    network.catch(() => {});
+    const slow = new Promise(resolve => setTimeout(() => resolve(cached), wait));
+    return Promise.race([network.catch(() => cached), slow]);
+  })();
 }
 
 self.addEventListener('fetch', event => {
   const request = event.request, url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== location.origin) return;
-  // Pages always try the network first, so a new release shows on the next
-  // open (and the ?v= reload never lands on the old saved page again).
-  const fresh = request.mode === 'navigate' || request.cache === 'no-store' || request.cache === 'no-cache' || request.cache === 'reload';
-  if (fresh) {
-    // no-cache: check with GitHub Pages too, instead of Safari's 10-minute copy.
-    const live = request.mode === 'navigate' ? new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' }) : request;
-    const network = fetch(live).then(r => save(request, r));
-    event.respondWith((async () => {
-      // On weak signal the network can hang without failing, so after a few
-      // seconds open the saved page instead and keep updating it behind.
-      const cached = await saved(request);
-      if (!cached) return network.catch(() => Response.error());
-      event.waitUntil(network.catch(() => {}));
-      const slow = new Promise(resolve => setTimeout(() => resolve(cached), request.mode === 'navigate' ? 2500 : 4000));
-      return Promise.race([network.catch(() => cached), slow]);
-    })());
-    return;
-  }
-  // Open instantly from the saved copy, and update it for next time.
+  const page = request.mode === 'navigate';
+  const live = page ? new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' }) : request;
+  // The ?v= reload after a release, and the version check itself, must see the
+  // new page: those wait for the network.
+  if ((page && url.searchParams.has('v')) || (!page && /\/$|\.html?$/.test(url.pathname) && request.cache === 'no-store'))
+    return event.respondWith(networkFirst(request, live, page ? 2500 : 4000));
   event.respondWith((async () => {
-    const cached = await saved(request);
-    const network = fetch(request).then(r => save(request, r)).catch(() => null);
-    if (cached) { event.waitUntil(network); return cached; }
-    return (await network) || Response.error();
+    const exact = await saved(request, false);
+    // A file whose ?v= changed (new release) isn't saved yet: fetch it, using
+    // an older saved version only if the network fails or hangs.
+    if (!exact && url.search && !page) return networkFirst(request, live, 4000);
+    const network = fetch(live).then(r => save(request, r));
+    const cached = exact || await saved(request);
+    if (cached) { event.waitUntil(network.catch(() => {})); return cached; }
+    return network.catch(() => Response.error());
   })());
 });
