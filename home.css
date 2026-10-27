@@ -45,3 +45,22 @@ h1{font-size:28px;letter-spacing:-1.2px;margin:0;line-height:1.1;font-weight:780
 @media(min-width:650px){.shell{padding-top:48px}h1{font-size:36px}}
 @media(max-width:350px){.tiles{gap:6px}.icon{width:42px;height:42px}.name{font-size:12px}}
 .weather{margin:-2px 0 12px;min-height:40px}
+.traffic:empty{display:none}
+.traffic{margin:-4px 0 12px}
+.traffic-card{display:block;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:0 13px}
+.traffic-card.quiet{display:flex;align-items:center;gap:9px;padding:9px 13px;color:var(--muted);font-size:12px}
+.traffic-card summary{display:flex;align-items:center;gap:9px;padding:9px 0;list-style:none;cursor:pointer}
+.traffic-card summary::-webkit-details-marker{display:none}
+.tr-ic{font-size:16px;line-height:1;flex-shrink:0}
+.tr-sum{flex:1;min-width:0}
+.tr-sum b{display:block;font-size:13.5px;font-weight:720}
+.tr-sum small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-chev{color:var(--mint);font-size:18px;font-weight:700;transition:transform .15s}
+.traffic-card[open] .tr-chev{transform:rotate(90deg)}
+.tr-item{border-top:1px solid #223049;padding:9px 0}
+.tr-head{display:flex;justify-content:space-between;gap:10px;font-size:12.5px}
+.tr-head time{color:var(--muted);font-size:11px;flex-shrink:0}
+.tr-where{color:#ffd98c;font-size:11.5px;margin-top:2px}
+.tr-item p{margin:5px 0 0;color:#c9d2e3;font-size:12px;line-height:1.5;white-space:pre-line}
+.tr-src{border-top:1px solid #223049;color:var(--muted);font-size:10.5px;padding:7px 0 9px}
+.tr-n{display:inline-block;min-width:18px;padding:1px 6px;margin-left:4px;border-radius:99px;background:#3a2c12;border:1px solid #8a6a24;color:#ffd98c;font-size:11px;font-weight:800;text-align:center;vertical-align:1px}
