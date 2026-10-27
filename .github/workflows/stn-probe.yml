@@ -4,7 +4,9 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-          for u in https://resource.data.gov.hk/td/en/specialtrafficnews.xml https://resource.data.gov.hk/td/tc/specialtrafficnews.xml; do
-            echo "=== $u"; curl -sS -D - -H 'Origin: https://smart-dashboard.ty-projects.workers.dev' -o body.xml "$u" | grep -iE '^(HTTP|access-control|content-type|cache-control)'; wc -c body.xml; head -c 3000 body.xml; echo; done
-          echo "=== dataset search"; curl -sS 'https://data.gov.hk/en-data/api/3/action/package_search?q=special%20traffic%20news&rows=5' | python3 -c "import json,sys;[print(p['name'],[r['url'] for r in p['resources']]) for p in json.load(sys.stdin)['result']['results']]" || true
+      - shell: bash {0}
+        run: |
+          echo "=== dataset search"
+          curl -sS 'https://data.gov.hk/en-data/api/3/action/package_search?q=traffic%20news&rows=8' | python3 -c "import json,sys;[print(p['name'],[r['url'] for r in p['resources']]) for p in json.load(sys.stdin)['result']['results']]"
+          for u in https://www.td.gov.hk/en/special_news/trafficnews.xml https://www.td.gov.hk/tc/special_news/trafficnews.xml https://static.data.gov.hk/td/traffic-news/specialtrafficnews.xml https://resource.data.one.gov.hk/td/en/specialtrafficnews.xml https://resource.data.one.gov.hk/td/tc/specialtrafficnews.xml; do
+            echo "=== $u"; curl -sS -L -D hdr.txt -H 'Origin: https://smart-dashboard.ty-projects.workers.dev' -o body.xml "$u"; grep -iE '^(HTTP|access-control|content-type|cache-control|location)' hdr.txt; wc -c body.xml; head -c 2500 body.xml; echo; done
