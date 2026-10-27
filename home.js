@@ -11,12 +11,14 @@ const TEXT={
   locating:'Finding where you are…',denied:'Turn on location for this site to see what’s near you.',noLocation:'Location unavailable. Tap Locate me to try again.',
   loading:'Loading…',none:'No arrivals predicted',noBus:'No bus stop within 600 m',nothingNear:'No bus, MTR, tram or ferry nearby.',min:'min',due:'Due',to:'To',towards:'Towards',
   liveTram:'Open Tram for routes and fares',noLive:'No live times',noSailing:'No more sailings today',tomorrow:'tomorrow',apart:'min apart',offline:'Offline: live times unavailable',
-  foot:'Add this page to your Home Screen to open every dashboard from one icon.',saved:n=>`${n} saved`},
+  foot:'Add this page to your Home Screen to open every dashboard from one icon.',saved:n=>`${n} saved`,
+  traffic:'Traffic news',noTraffic:'No traffic incidents reported',trafficSrc:'Transport Department special traffic news',roads:'Roads',close:'Close'},
  tc:{title:'智能交通資訊',place:'香港',bus:'巴士',mtr:'港鐵',tram:'電車',ferry:'渡輪',nearby:'附近',locate:'定位',favs:'收藏',
   locating:'正在定位…',denied:'請為此網站開啟定位，以查看附近交通。',noLocation:'無法取得位置，請按「定位」再試。',
   loading:'載入中…',none:'暫時沒有預報班次',noBus:'600 米內沒有巴士站',nothingNear:'附近沒有巴士、港鐵、電車或渡輪。',min:'分鐘',due:'即將到達',to:'往',towards:'往',
   liveTram:'開啟電車資訊查看路線及車費',noLive:'沒有實時班次',noSailing:'今日已無班次',tomorrow:'明天',apart:'分鐘一班',offline:'離線：未能取得實時資料',
-  foot:'將此頁加至主畫面，即可從同一圖示開啟所有資訊板。',saved:n=>`已收藏 ${n} 個`}};
+  foot:'將此頁加至主畫面，即可從同一圖示開啟所有資訊板。',saved:n=>`已收藏 ${n} 個`,
+  traffic:'交通消息',noTraffic:'暫時沒有交通事故消息',trafficSrc:'運輸署特別交通消息',roads:'道路',close:'關閉'}};
 const ICON={
  bus:'<svg viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="21" rx="5"/><path d="M6 15h20M10 25v3m12-3v3M11 20h1m8 0h1M10 9h12"/></svg>',
  mtr:'<svg viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="23" rx="7"/><path d="M9 14h14M11 9h10M11 26l-3 4m13-4 3 4M12 20h2m4 0h2"/></svg>',
@@ -210,6 +212,63 @@ async function renderFavs(){
  draw();await Promise.all(jobs);
 }
 
+// ---------------------------------------------------------------- traffic news
+// The Transport Department's special traffic news: incidents, closures and diversions
+// across Hong Kong, in English and Chinese. Checked every 5 minutes.
+let news=null,newsAt=0,newsLoading=null;
+async function loadNews(){
+ if(newsLoading)return newsLoading;
+ if(news&&Date.now()-newsAt<300000)return;
+ newsLoading=(async()=>{try{
+  const c=new AbortController(),tm=setTimeout(()=>c.abort(),10000);
+  const r=await fetch('https://www.td.gov.hk/en/special_news/trafficnews.xml',{cache:'no-store',signal:c.signal});clearTimeout(tm);
+  if(!r.ok)throw 0;const doc=new DOMParser().parseFromString(await r.text(),'application/xml');
+  const v=(m,k)=>(m.getElementsByTagName(k)[0]?.textContent||'').trim();
+  news=[...doc.getElementsByTagName('message')].filter(m=>v(m,'INCIDENT_STATUS_EN').toUpperCase()!=='CLOSED').map(m=>{
+   const both=k=>({en:v(m,k+'_EN'),tc:v(m,k+'_CN')});
+   return {id:v(m,'INCIDENT_NUMBER')||v(m,'ID'),heading:both('INCIDENT_HEADING'),detail:both('INCIDENT_DETAIL'),place:both('LOCATION'),
+    district:both('DISTRICT'),direction:both('DIRECTION'),content:both('CONTENT'),at:Date.parse(v(m,'ANNOUNCEMENT_DATE')+'+08:00')};})
+   .sort((a,b)=>(b.at||0)-(a.at||0));
+  newsAt=Date.now();
+ }catch{}finally{newsLoading=null;}})();
+ return newsLoading;
+}
+// The feed doesn't say which transport a notice is about: sort by what it mentions.
+const MODES=[['mtr',/\bMTR\b|railway|train service|Light Rail|港鐵|鐵路|列車|輕鐵/i],['tram',/\btrams?\b|電車/i],
+ ['ferry',/ferry service|ferry route|sailing|kai-?to|渡輪服務|渡輪航線|航班|街渡/i],['bus',/\bbus(es)?\b|minibus|public transport|巴士|小巴|公共交通/i]];
+const modeOf=n=>{const all=[n.heading,n.detail,n.place,n.content].map(x=>x.en+' '+x.tc).join(' ');return (MODES.find(([,re])=>re.test(all))||['road'])[0];};
+const ORDER=['bus','mtr','tram','ferry','road'];
+const ROAD_ICON='<svg viewBox="0 0 32 32"><path d="M11 4 6 28M21 4l5 24M16 6v4m0 5v4m0 5v4"/></svg>';
+const modeName=m=>m==='road'?T().roads:T()[m];
+let newsOpen=false;
+function newsGroups(){const g=new Map();for(const n of news||[]){const m=modeOf(n);if(!g.has(m))g.set(m,[]);g.get(m).push(n);}return ORDER.filter(m=>g.has(m)).map(m=>[m,g.get(m)]);}
+function renderNews(){
+ const el=$('traffic');if(!news){el.innerHTML='';return;}
+ const t=T();
+ if(!news.length){el.innerHTML=`<div class="traffic-card quiet"><span class="tr-ic">🚦</span><span>${esc(t.noTraffic)}</span></div>`;showNews(false);return;}
+ el.innerHTML=`<button class="traffic-card" type="button" aria-haspopup="dialog"><span class="tr-ic">🚦</span><span class="tr-sum"><b>${esc(t.traffic)} <span class="tr-n">${news.length}</span></b>`+
+  `<small>${newsGroups().map(([m,l])=>`${esc(modeName(m))} ${l.length}`).join(' · ')}</small></span><span class="tr-chev">›</span></button>`;
+ el.querySelector('button').addEventListener('click',()=>showNews(true));
+ if(newsOpen)showNews(true);
+}
+function showNews(on){
+ newsOpen=on;document.querySelectorAll('.tr-panel,.tr-shade').forEach(e=>e.remove());if(!on||!news?.length)return;
+ const t=T(),L=x=>(tc()?x.tc||x.en:x.en||x.tc)||'';
+ const time=at=>Number.isFinite(at)?new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(at):'';
+ const title=n=>[L(n.heading),L(n.detail)].filter(Boolean).join(' · ');
+ const where=n=>[L(n.place),L(n.district),L(n.direction)].filter(Boolean).join(' · ');
+ const shade=document.createElement('div');shade.className='tr-shade';shade.addEventListener('click',()=>showNews(false));
+ const p=document.createElement('div');p.className='tr-panel';p.setAttribute('role','dialog');p.setAttribute('aria-label',t.traffic);
+ p.innerHTML=`<div class="tr-top"><b>🚦 ${esc(t.traffic)}</b><button type="button" class="tr-close" aria-label="${esc(t.close)}">✕</button></div><div class="tr-body">`+
+  newsGroups().map(([m,list])=>`<section class="tr-group"><h3><span class="ic ${m}">${m==='road'?ROAD_ICON:ICON[m]}</span>${esc(modeName(m))}<span class="tr-count">${list.length}</span></h3>`+
+   list.map(n=>`<div class="tr-item"><div class="tr-head"><b>${esc(title(n))}</b><time>${esc(time(n.at))}</time></div>${where(n)?`<div class="tr-where">${esc(where(n))}</div>`:''}<p>${esc(L(n.content))}</p></div>`).join('')+`</section>`).join('')+
+  `</div><div class="tr-src">${esc(t.trafficSrc)}</div>`;
+ p.querySelector('.tr-close').addEventListener('click',()=>showNews(false));
+ document.body.append(shade,p);
+}
+addEventListener('keydown',e=>{if(e.key==='Escape'&&newsOpen)showNews(false);});
+async function refreshNews(){await loadNews();renderNews();}
+
 // ---------------------------------------------------------------- page
 function texts(){
  const t=T();document.documentElement.lang=tc()?'zh-Hant-HK':'en';document.title=t.title;
@@ -218,7 +277,7 @@ function texts(){
  $('today').textContent=(t.place+' · '+date).toUpperCase();
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
 }
-function refresh(){renderNearby();renderFavs();}
+function refresh(){renderNearby();renderFavs();refreshNews();}
 // On open, a quick rough fix (wifi or phone network) shows something at once, then a GPS fix
 // replaces it. A rougher answer never replaces a sharper one.
 let acc=Infinity;
@@ -253,4 +312,4 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState!==
  if(!here&&(locState==='denied'||locState==='fail'))autoLocate();refresh();});
 setInterval(()=>{if(document.visibilityState==='visible')refresh();},30000);
 
-texts();renderNearby();renderFavs();autoLocate();
+texts();renderNearby();renderFavs();refreshNews();autoLocate();
