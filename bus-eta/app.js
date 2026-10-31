@@ -108,6 +108,7 @@ function translatePhrase(s){
    [/^HONG KONG · (.+)$/,(m,date)=>'香港 · '+date],
    [/^HK time (.+)$/,(m,v)=>'香港時間 '+v],
    [/^(\d+) grouped results?$/,(m,n)=>n+' 個路線組合'],
+   [/^Routes starting with (.+)$/,(m,r)=>r+' 開頭的路線'],
    [/^(Outbound|Inbound) · (\d+) stop records$/,(m,d,n)=>(UI_ZH[d]||d)+' · '+n+' 個站點紀錄'],
    [/^(Outbound|Inbound)$/,(m,d)=>UI_ZH[d]],
    [/^(\d+) route \/ direction groups$/,(m,n)=>n+' 組路線／方向'],
@@ -142,7 +143,8 @@ function translatePhrase(s){
  const front=s.slice(0,s.indexOf(t));return front+translated+s.slice(s.indexOf(t)+t.length);
 }
 function localizeDocument(){
- document.documentElement.lang=state.lang==='tc'?'zh-Hant-HK':'en';
+ // Only touch lang when it changes: weather.js redraws on every lang write, which would re-run this forever.
+ const lang=state.lang==='tc'?'zh-Hant-HK':'en';if(document.documentElement.lang!==lang)document.documentElement.lang=lang;
  for(const root of [document.querySelector('.app-shell'),document.querySelector('#modalScrim')]){
   if(!root)return;
   const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
@@ -270,8 +272,8 @@ function routeResults(){
  if(q){
   // Route-like queries must match route NUMBER, never a stop name or another route's destination.
   if(/^[A-Z0-9]{1,6}$/.test(q)&&/\d/.test(q)){
-   const exact=groups.filter(g=>g.route===q);
-   groups=exact.length?exact:groups.filter(g=>g.route.startsWith(q));
+   // Exact route first, then every other route that starts with it (96 → 96, then 960, 968, 96R…).
+   groups=[...groups.filter(g=>g.route===q),...groups.filter(g=>g.route!==q&&g.route.startsWith(q))];
   } else groups=groups.filter(g=>g.route.includes(q)||g.destination.toUpperCase().includes(q)||g.items.some(x=>x.name.toUpperCase().includes(q)));
  }
  return groups;
@@ -342,8 +344,8 @@ function refreshFavouriteETAs(force=false){
 }
 function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedStop(f))}</strong><span class="group-meta">${state.lang==='tc'?'往':'To'} ${esc(localizedDestination(f))}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span>${favouriteETAMarkup(f,i)}<span class="group-arrow">›</span></button>`).join('');}
 function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Your chosen route, direction and boarding stop')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
-function browse(){const q=state.query.trim(), groups=q?routeResults():[], exact=q&&groups.length>0&&groups.every(g=>g.route===clean(q));
- return `<div class="card search-card"><label class="card-title" for="routeSearch">Route number or stop name</label><input id="routeSearch" class="field" autocomplete="off" enterkeyhint="search" placeholder="e.g. 102 or Central" value="${esc(state.query)}"/>${q&&!exact?'<p class="small-note search-hint">Showing matching routes and directions.</p>':''}</div><div class="operator-row route-filters">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div><section id="routeResults" class="route-results">${q?`${line('Routes and directions',`${fmt(groups.length)} grouped result${groups.length===1?'':'s'}`)}<div class="card no-gap">${groups.length?groupRows(groups.slice(0,100)):'<div class="empty">No matching routes. Try another number or stop name.</div>'}</div>${groups.length>100?'<p class="small-note">Showing the first 100 results; refine your search.</p>':''}`:'<div class="search-empty">Enter a route number to find its direction and verified stops.</div>'}</section>`;}
+function browse(){const q=state.query.trim(), groups=q?routeResults():[], exact=q&&groups.length>0&&groups.every(g=>g.route===clean(q)), same=groups.filter(g=>g.route===clean(q)), more=same.length?groups.filter(g=>g.route!==clean(q)):[];
+ return `<div class="card search-card"><label class="card-title" for="routeSearch">Route number or stop name</label><input id="routeSearch" class="field" autocomplete="off" enterkeyhint="search" placeholder="e.g. 102 or Central" value="${esc(state.query)}"/>${q&&!exact?'<p class="small-note search-hint">Showing matching routes and directions.</p>':''}</div><div class="operator-row route-filters">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div><section id="routeResults" class="route-results">${q?`${line('Routes and directions',`${fmt((more.length?same:groups).length)} grouped result${(more.length?same:groups).length===1?'':'s'}`)}<div class="card no-gap">${groups.length?groupRows((more.length?same:groups).slice(0,100)):'<div class="empty">No matching routes. Try another number or stop name.</div>'}</div>${more.length?`${line(`Routes starting with ${clean(q)}`,`${fmt(more.length)} grouped result${more.length===1?'':'s'}`)}<div class="card no-gap">${groupRows(more.slice(0,100))}</div>`:''}${groups.length>100?'<p class="small-note">Showing the first 100 results; refine your search.</p>':''}`:'<div class="search-empty">Enter a route number to find its direction and verified stops.</div>'}</section>`;}
 function nearby(){
  const candidates=state.demo?demoStops.flatMap(f=>f.variants):state.nearby;
  const groups=makeGroups(candidates);groups.forEach(g=>{g.nearestDistance=Math.min(...g.items.map(x=>state.position&&goodPosition(x)?distance(state.position.lat,state.position.lng,x.lat,x.lng):Infinity));});
@@ -1309,13 +1311,13 @@ async function loadCatalogue(){const saved=await indexedGet(CATALOGUE_STORE);
 async function importCatalogue(file){try{const json=JSON.parse(await file.text()),entries=normalizeCatalogue(json);if(!entries.length)throw Error('Empty catalogue');applyCatalogue(entries,json.catalogue_date||'Imported');await indexedPut(CATALOGUE_STORE,{doc:json,date:state.catalogueDate,fetchedAt:Date.now()});banner('Imported '+fmt(entries.length)+' route-stop records.');}catch(e){banner('Catalogue import failed: '+e.message);}}
 async function importFavourites(file){try{const json=JSON.parse(await file.text()),arr=Array.isArray(json)?json:Object.values(json);const previous=state.favourites;state.favourites=[...previous,...arr];restoreFavs();state.favourites=[...new Map(state.favourites.map(f=>[favID(f),f])).values()];persist('hkbus_favourites_v2',state.favourites);render();banner('Favourites imported.');}catch(e){banner('Import failed: '+e.message);}}
 let inputTimer;
-document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);if(state.query.trim()&&routeResults().length<=4&&routeResults().every(g=>g.route===clean(state.query))){const result=$('#routeResults');result?.scrollIntoView({block:'nearest',behavior:'smooth'});void ensurePhysicalRoute(clean(state.query));}},160);}});
+document.addEventListener('input',e=>{if(e.target.id==='routeSearch'){state.query=e.target.value;clearTimeout(inputTimer);inputTimer=setTimeout(()=>{if(state.view!=='browse')return;const el=$('#routeSearch'),pos=el.selectionStart;render();const next=$('#routeSearch');next.focus();next.setSelectionRange(pos,pos);if(state.query.trim()&&routeResults().some(g=>g.route===clean(state.query))){if(routeResults().length<=4){const result=$('#routeResults');result?.scrollIntoView({block:'nearest',behavior:'smooth'});}void ensurePhysicalRoute(clean(state.query));}},160);}});
 document.addEventListener('change',e=>{if(e.target.id==='radiusSelect'){++nearbyETAState.generation;nearbyETAState.progress=null;state.radius=Number(e.target.value);if(state.position)populateNearby();else{state.nearby=[];render();locate();}}
  if(e.target.id==='catalogueFile'){const f=e.target.files?.[0];if(f)importCatalogue(f);e.target.value='';}
  if(e.target.id==='favouritesFile'){const f=e.target.files?.[0];if(f)importFavourites(f);e.target.value='';}});
 document.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav){setView(nav.dataset.view);return;}
  const el=e.target.closest('[data-action]');if(!el)return;const action=el.dataset.action;
- if(action==='filterOp'){state.operator=el.dataset.value;render();if(state.query.trim()&&routeResults().every(g=>g.route===clean(state.query)))void ensurePhysicalRoute(clean(state.query));}
+ if(action==='filterOp'){state.operator=el.dataset.value;render();if(state.query.trim()&&routeResults().some(g=>g.route===clean(state.query)))void ensurePhysicalRoute(clean(state.query));}
  if(action==='setLanguage'){state.lang=el.dataset.value==='tc'?'tc':'en';persist('hkbus_lang',state.lang);persist('dashboard_lang',state.lang);render();}
  if(action==='setStartPage'){const next=el.dataset.value;if(START_PAGES.includes(next)){state.startPage=next;persist('hkbus_start_page',next);render();}}
  if(action==='openGroup')openGroup(el.dataset.group);
