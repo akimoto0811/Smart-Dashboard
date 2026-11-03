@@ -137,3 +137,25 @@ select{height:40px;padding-top:8px;padding-bottom:8px;border-radius:13px}
 #faresTitle{display:none}
 #view-fares .journey-pick .pick-head:first-child{margin-top:0}
 .info-pills .pill{max-width:130px}
+/* Journey result: bigger route, time on the right. */
+.journey-sum{align-items:center;margin-bottom:12px}
+.journey-sum strong{font-size:26px}
+.journey-sum span{font-size:13px}
+.journey-leg{gap:12px}
+.journey-leg .leg-bar{width:5px}
+.journey-leg strong{font-size:17px}
+.journey-leg strong small{display:block;font-size:12px;margin-top:1px}
+.journey-leg>div>small{font-size:13px;margin-top:3px;color:#c9d4e3}
+.journey-change{font-size:13px;margin:9px 0 9px 17px}
+/* Line pickers: colour dot on the field and a coloured popup list. */
+.line-pick{--lc:transparent}
+.line-pick select{padding-left:27px}
+.line-pick:before{content:'';position:absolute;left:11px;top:50%;width:9px;height:9px;margin-top:-4.5px;border-radius:50%;background:var(--lc);pointer-events:none;z-index:1}
+.line-hit{position:absolute;inset:0;background:none;border:0;padding:0;border-radius:13px;z-index:2}
+.line-shade{position:fixed;inset:0;z-index:60;background:#0006}
+.line-menu{position:fixed;z-index:61;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:6px;box-shadow:0 18px 40px #0009}
+.line-menu button{display:flex;align-items:center;gap:11px;width:100%;background:none;border:0;border-radius:11px;padding:10px 10px;text-align:left;font-size:15px;font-weight:650;color:var(--ink)}
+.line-menu button.on{background:var(--panel2)}
+.line-menu .lm-bar{width:5px;height:22px;border-radius:3px;background:var(--lc);flex:none}
+.line-menu .lm-name{flex:1}
+.line-menu .lm-tick{color:var(--mint);font-weight:800}

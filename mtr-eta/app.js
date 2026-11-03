@@ -62,7 +62,7 @@ function trains(dir){return state.api?.[dir]||[]}
 function directionHeading(dir){const v=trains(dir);return v.length?name(v[0].dest):loc(endStation(dir));}
 function populateSelects(){const p=$('lineSelect').value||state.line;
  $('lineSelect').innerHTML=Object.entries(LINES).map(([code,l])=>`<option value="${safe(code)}">${safe(lineName(l))}</option>`).join('');$('lineSelect').value=state.line;
- $('stationSelect').innerHTML=D(state.line).map(s=>`<option value="${safe(s[0])}">${safe(loc(s))}</option>`).join('');$('stationSelect').value=state.station;
+ $('stationSelect').innerHTML=D(state.line).map(s=>`<option value="${safe(s[0])}">${safe(loc(s))}</option>`).join('');$('stationSelect').value=state.station;syncLineDots();
 }
 function renderETA(){const T_=T(),line=LINES[state.line];document.documentElement.style.setProperty('--accent',line.color);txt('routeDesc',lineName(line)+' · '+name(state.station));
  for(const dir of ['UP','DOWN']){const n=dir==='UP'?0:1;txt('directionSmall'+n,T_.towards);txt('directionName'+n,directionHeading(dir));$('dir'+n).classList.toggle('selected',state.dir===dir);}
@@ -84,7 +84,23 @@ function fareStations(){for(const [side,dl,ds] of [['From','ISL','ADM'],['To','I
 function renderFare(){$('fareService').value=[$('fareFromLine').value,$('fareToLine').value].includes('AEL')?'airport':'heavy';const d=state.official;const airport=$('fareService').value==='airport';
  // Airport Express fares use their own station IDs (HOK is 44 there, 39 on the MTR network).
  const id=code=>airport?Object.entries(d?.stations||{}).find(([k,v])=>v.code===code&&Object.keys(d.airport_fares||{}).some(p=>p.split('|').includes(k)))?.[0]:d?.codes?.[code];
- const a=id($('fareFrom').value),b=id($('fareTo').value);const prices=airport?d?.airport_fares:d?.fares;const fare=prices?.[a+'|'+b];txt('octopusValue',fmtDollar(fare?.octopus));txt('singleValue',fmtDollar(fare?.single));txt('fareDisclaimer',d?T().estimate+(fare?'':` ${T().noFare}`):T().noFile);renderJourney();renderStation();}
+ const a=id($('fareFrom').value),b=id($('fareTo').value);const prices=airport?d?.airport_fares:d?.fares;const fare=prices?.[a+'|'+b];txt('octopusValue',fmtDollar(fare?.octopus));txt('singleValue',fmtDollar(fare?.single));txt('fareDisclaimer',d?T().estimate+(fare?'':` ${T().noFare}`):T().noFile);syncLineDots();renderJourney();renderStation();}
+// Line pickers open a popup with each line's colour (a plain <select> menu can't show colours).
+const LINE_PICKERS=['lineSelect','fareFromLine','fareToLine'];
+function syncLineDots(){for(const id of LINE_PICKERS){const el=$(id);if(el?.parentElement)el.parentElement.style.setProperty('--lc',LINES[el.value]?.color||'transparent');}}
+function closeLineMenu(){document.querySelector('.line-menu')?.remove();document.querySelector('.line-shade')?.remove();}
+function openLineMenu(sel){closeLineMenu();const r=sel.getBoundingClientRect(),shade=document.createElement('div'),menu=document.createElement('div');
+ shade.className='line-shade';menu.className='line-menu';menu.setAttribute('role','listbox');
+ menu.innerHTML=Object.entries(LINES).map(([code,l])=>`<button type="button" role="option" data-line="${safe(code)}" class="${code===sel.value?'on':''}" style="--lc:${safe(l.color)}"><span class="lm-bar"></span><span class="lm-name">${safe(lineName(l))}</span>${code===sel.value?'<span class="lm-tick">✓</span>':''}</button>`).join('');
+ document.body.append(shade,menu);
+ const w=Math.max(r.width,240),left=Math.min(Math.max(8,r.left),innerWidth-w-8),below=innerHeight-r.bottom-12,h=menu.offsetHeight;
+ Object.assign(menu.style,{width:w+'px',left:left+'px',top:(h<=below||r.top<below?r.bottom+6:Math.max(8,r.top-6-h))+'px',maxHeight:Math.max(below,r.top-14,200)+'px'});
+ shade.onclick=closeLineMenu;
+ menu.onclick=e=>{const b=e.target.closest('[data-line]');if(!b)return;closeLineMenu();if(sel.value!==b.dataset.line){sel.value=b.dataset.line;sel.dispatchEvent(new Event('change'));}syncLineDots();};}
+function installLinePickers(){for(const id of LINE_PICKERS){const sel=$(id),wrap=sel.parentElement;wrap.classList.add('line-pick');
+  const hit=document.createElement('button');hit.type='button';hit.className='line-hit';hit.setAttribute('aria-haspopup','listbox');hit.onclick=()=>openLineMenu(sel);
+  hit.setAttribute('aria-label',(id==='fareToLine'?'To':id==='fareFromLine'?'From':'MTR line')+' line');wrap.append(hit);}
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLineMenu();});addEventListener('resize',closeLineMenu);syncLineDots();}
 // Journey planner. Stations join along each line in LINES order; branches and
 // supplement stations are joined explicitly. Ride time comes from the distance
 // between station positions (station-coords.json) at each line's average speed.
@@ -123,7 +139,7 @@ function renderJourney(){const t=T(),box=$('journeyResult'),from=$('fareFrom').v
  if(!plan){box.innerHTML=`<p class="journey-note">${safe(t.noRoute)}</p>`;return;}
  const changes=plan.changes;
  const fares=`<div class="journey-fare"><span>${safe(t.octopusShort)} <b>${safe($('octopusValue').textContent)}</b></span><span>${safe(t.singleShort)} <b>${safe($('singleValue').textContent)}</b></span></div>`;
- box.innerHTML=`<div class="journey-sum"><strong>${safe(t.about)} ${plan.min} <small>${safe(t.minShort)}</small></strong><span>${safe(changes?changes+' '+(state.lang==='tc'?t.change:changes>1?t.changes:t.change):t.direct)}</span></div>`+
+ box.innerHTML=`<div class="journey-sum"><span>${safe(changes?changes+' '+(state.lang==='tc'?t.change:changes>1?t.changes:t.change):t.direct)}</span><strong>${safe(t.about)} ${plan.min} <small>${safe(t.minShort)}</small></strong></div>`+
   plan.legs.map((l,i)=>l.line==='WALK'?`<div class="journey-change">${safe(t.walk)} ${safe(name(l.from))} → ${safe(name(l.to))} · ${safe(t.about)} ${Math.round(l.min)} ${safe(t.minShort)}</div>`:`${i&&plan.legs[i-1].line!=='WALK'?`<div class="journey-change">${safe(t.changeAt.replace('{s}',name(l.from)))}</div>`:''}<div class="journey-leg" style="--leg:${safe(LINES[l.line].color)}"><span class="leg-bar"></span><div><strong>${safe(lineName(LINES[l.line]))} <small>${safe(t.towardsLeg)} ${safe(l.towards.map(name).join(' / '))}</small></strong><small>${safe(name(l.from))} → ${safe(name(l.to))} · ${l.stops} ${safe(l.stops>1?t.stops:t.stop)} · ${safe(t.about)} ${Math.round(l.min)} ${safe(t.minShort)}</small></div></div>`).join('')+fares;}
 async function loadCoords(){try{const j=await getJSON('./station-coords.json?v=1',12000);if(j?.stations&&Object.keys(j.stations).length>50)coords=j.stations;}catch{}renderJourney();if(coords)void autoLocate();}
 // Locate on every app open, unless location is blocked (then Locate me still explains why).
@@ -167,7 +183,7 @@ function translate(){document.documentElement.lang=state.lang==='tc'?'zh-Hant':'
 function renderDataStatus(){const o=state.official;txt('dataStatus',o?`${state.lang==='tc'?'資料日期':'Generated'}: ${o.generated_utc.slice(0,10)} · ${Object.keys(o.fares||{}).length.toLocaleString()} ${state.lang==='tc'?'筆官方車費':'official fare pairs'} · ${Object.keys(o.accessibility||{}).length} ${state.lang==='tc'?'個車站有無障礙設施資料':'stations with accessibility records'}`:T().noFile)}
 function navigate(view){state.view=view;document.querySelectorAll('.app > section').forEach(el=>el.classList.toggle('hidden',el.id!=='view-'+view));document.querySelectorAll('.navitem').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});if(view==='favourites')renderFav();if(view==='fares')renderFare();if(view==='station')renderStation();if(view==='eta')void refresh(false);scrollTo({top:0,behavior:'instant'})}
 async function loadCSVData(){try{const j=await getJSON('./station-data.json?v=1.0.0',12000);if(j.schema!==1||!j.codes||!j.fares||!j.accessibility||Object.keys(j.fares).length<1000)throw Error('Invalid snapshot');state.official=j;}catch(e){state.official=null;state.dataError=e.message;}renderDataStatus();renderFare();renderStation()}
-function install(){translate();navigate(state.view);
+function install(){installLinePickers();translate();navigate(state.view);
  $('lineSelect').addEventListener('change',e=>{state.line=e.target.value;state.station=D(state.line)[Math.min(Math.floor(D(state.line).length/2),D(state.line).length-1)][0];state.dir='UP';state.receivedAt=0;state.apiKey='';populateSelects();persist();refresh(true)});
  $('stationSelect').addEventListener('change',e=>{state.station=e.target.value;state.dir='UP';state.receivedAt=0;state.apiKey='';persist();refresh(true)});
  ['UP','DOWN'].forEach((dir,index)=>$('dir'+index).onclick=()=>{state.dir=dir;persist();renderETA()});
