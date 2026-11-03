@@ -192,3 +192,7 @@ select{height:40px;padding-top:8px;padding-bottom:8px;border-radius:13px}
 .line-menu .lm-bar{width:5px;height:22px;border-radius:3px;background:var(--lc);flex:none}
 .line-menu .lm-name{flex:1}
 .line-menu .lm-tick{color:var(--mint);font-weight:800}
+.rc-more{font-size:13px;font-weight:700;color:var(--muted);margin:14px 4px 7px}
+.route-card.alt{border-color:var(--line);padding:11px 15px 14px;margin-bottom:8px}
+.route-card.alt .rc-top{margin-bottom:11px}
+.route-card.alt .rc-time b{font-size:24px}
