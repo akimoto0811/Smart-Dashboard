@@ -137,16 +137,49 @@ select{height:40px;padding-top:8px;padding-bottom:8px;border-radius:13px}
 #faresTitle{display:none}
 #view-fares .journey-pick .pick-head:first-child{margin-top:0}
 .info-pills .pill{max-width:130px}
-/* Journey result: bigger route, time on the right. */
-.journey-sum{align-items:center;margin-bottom:12px}
-.journey-sum strong{font-size:26px}
-.journey-sum span{font-size:13px}
-.journey-leg{gap:12px}
-.journey-leg .leg-bar{width:5px}
-.journey-leg strong{font-size:17px}
-.journey-leg strong small{display:block;font-size:12px;margin-top:1px}
-.journey-leg>div>small{font-size:13px;margin-top:3px;color:#c9d4e3}
-.journey-change{font-size:13px;margin:9px 0 9px 17px}
+/* Journey: suggested route card; tap opens the step-by-step details. */
+.journey:has(.route-card){padding:0;background:none;border:0}
+.route-card{display:block;width:100%;text-align:left;background:var(--panel2);border:1.5px solid #7ce2b266;border-radius:16px;padding:13px 15px 16px;color:var(--ink)}
+.route-card:active{background:#122038}
+.rc-label{display:block;color:var(--mint);font-size:13px;font-weight:720;margin-bottom:8px}
+.rc-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.rc-chip{background:#1d2a42;border-radius:9px;padding:5px 9px;font-size:13px;font-weight:650;color:#c9d4e3}
+.rc-time{font-size:14px;color:var(--muted);font-weight:650;white-space:nowrap}
+.rc-time b{font-size:30px;color:var(--mint);font-weight:780;letter-spacing:-.5px;margin:0 2px}
+.rc-time i{font-style:normal;font-size:20px;margin-left:6px;color:var(--muted)}
+.rc-ends{display:flex;justify-content:space-between;gap:12px;margin:12px 0 9px;font-size:17px;font-weight:720}
+.rc-ends span:last-child{text-align:right}
+.rc-bar{display:flex;align-items:center;padding:0 2px}
+.rc-seg{height:6px;background:var(--leg);min-width:18px}
+.rc-seg.walk{background:repeating-linear-gradient(90deg,var(--leg) 0 5px,transparent 5px 9px)}
+.rc-dot{width:13px;height:13px;border-radius:50%;background:var(--panel2);border:2.5px solid var(--ink);flex:none;margin:0 -2px;position:relative;z-index:1}
+.journey .journey-fare{padding:10px 4px 0;border-top:0}
+.jd-shade{position:fixed;inset:0;z-index:70;background:#0009}
+.jd-panel{position:fixed;z-index:71;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,495px);max-height:88dvh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;box-shadow:0 -14px 40px #0008}
+.jd-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+.jd-head strong{display:block;font-size:18px;font-weight:760}
+.jd-head span{display:block;font-size:13px;color:var(--muted);margin-top:3px}
+.jd-close{background:#1d2a42;border:0;border-radius:50%;width:32px;height:32px;color:var(--ink);font-size:14px;flex:none}
+.jd-body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 18px calc(18px + var(--safe,0px))}
+.jd-step,.jd-ride summary{display:grid;grid-template-columns:52px 22px 1fr;align-items:start;position:relative}
+.jd-time{font-size:12px;color:var(--muted);font-weight:650;padding-top:16px;text-align:right;padding-right:8px}
+.jd-node{width:16px;height:16px;border-radius:50%;border:3px solid var(--leg);background:var(--panel);margin:15px 0 0 4px;position:relative;z-index:1}
+.jd-step:not(.end):after{content:'';position:absolute;left:62px;top:28px;bottom:-2px;width:4px;background:var(--leg)}
+.jd-card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:4px 0}
+.jd-card small{display:block;font-size:11px;color:var(--muted);font-weight:650;text-transform:uppercase;letter-spacing:.4px}
+.jd-card strong{display:block;font-size:17px;font-weight:740;margin-top:1px}
+.jd-line{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:650;margin-top:5px}
+.jd-line i{width:10px;height:10px;border-radius:50%;background:var(--leg)}
+.jd-sub{display:block;font-size:13px;margin-top:3px;color:#c9d4e3}
+.jd-ride summary{list-style:none;cursor:pointer;font-size:15px;font-weight:650;color:#c9d4e3;min-height:44px;align-items:center}
+.jd-ride summary::-webkit-details-marker{display:none}
+.jd-line-seg{align-self:stretch;width:4px;background:var(--leg);margin-left:10px}
+.jd-ride summary em{font-style:normal;color:var(--muted);margin-left:4px}
+.jd-ride[open] summary em{display:inline-block;transform:rotate(180deg)}
+.jd-ride ol{list-style:none;margin:0;padding:0 0 4px 74px;position:relative}
+.jd-ride ol:before{content:'';position:absolute;left:62px;top:0;bottom:0;width:4px;background:var(--leg)}
+.jd-ride li{font-size:13px;color:var(--muted);padding:3px 0;position:relative}
+.jd-ride li:before{content:'';position:absolute;left:-16px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--panel);border:2px solid var(--leg)}
 /* Line pickers: colour dot on the field and a coloured popup list. */
 .line-pick{--lc:transparent}
 .line-pick select{padding-left:27px}
