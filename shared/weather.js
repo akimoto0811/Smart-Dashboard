@@ -153,5 +153,16 @@ function start(){if(!mount())return;loadAreas();draw();void refresh(false);void 
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&open)toggle(false);});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh(false);});
  setInterval(()=>{if(document.visibilityState==='visible')void refresh(false);},60000);}
+// When a page fits on screen, keep it still: only a pull down from the top
+// (the browser's pull-to-refresh) moves it. Popups and lists that scroll inside
+// themselves still scroll.
+function holdShortPages(){let x=0,y=0;
+ const fits=()=>document.documentElement.scrollHeight<=innerHeight+1;
+ const scrollsInside=el=>{for(;el&&el!==document.body&&el!==document.documentElement;el=el.parentElement){const o=getComputedStyle(el).overflowY;if((o==='auto'||o==='scroll')&&el.scrollHeight>el.clientHeight+1)return true;}return false;};
+ addEventListener('touchstart',e=>{x=e.touches[0].clientX;y=e.touches[0].clientY;},{passive:true});
+ addEventListener('touchmove',e=>{if(e.touches.length!==1||!fits()||scrollsInside(e.target))return;
+  const t=e.touches[0],dx=t.clientX-x,dy=t.clientY-y;if(Math.abs(dx)>Math.abs(dy))return; // sideways swipes are left alone
+  if(!(dy>0&&scrollY<=0)&&e.cancelable)e.preventDefault();},{passive:false});}
+holdShortPages();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
