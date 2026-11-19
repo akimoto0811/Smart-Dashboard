@@ -132,9 +132,7 @@ async function renderNearby(){
  const now=hkNow(),rows=[],jobs=[];
  // Each mode fills its own row as soon as its data arrives.
  // A newer render (a sharper location came in) takes over: this one stops drawing.
- const slot=(k,html)=>{if(me!==renders)return;rows[k]=html;const all=rows.filter(Boolean);el.innerHTML=all.join('');
-  // Two rows fit on the menu; All opens the full list.
-  $('nearAll').classList.toggle('hidden',all.length<3);if(nearOpen)showNearby(true);};
+ const slot=(k,html)=>{if(me!==renders)return;rows[k]=html;const all=rows.filter(Boolean);el.innerHTML=all.join('');};
  slot(0,row({kind:'bus',href:'bus-eta/',title:t.bus,sub:t.loading}));
  slot(1,row({kind:'mtr',href:'mtr-eta/',title:t.mtr,sub:t.loading}));
  slot(2,row({kind:'tram',href:'tram-eta/',title:t.tram,sub:t.loading}));
@@ -186,12 +184,13 @@ async function renderNearby(){
  if(me===renders&&!rows.some(Boolean))el.innerHTML=`<div class="empty">${esc(t.nothingNear)}</div>`;
 }
 
-let nearOpen=false;
-function showNearby(on){nearOpen=on;document.querySelectorAll('.near-panel,.near-shade').forEach(e=>e.remove());if(!on)return;
- const t=T(),shade=document.createElement('div');shade.className='tr-shade near-shade';shade.addEventListener('click',()=>showNearby(false));
- const p=document.createElement('div');p.className='tr-panel near-panel';p.setAttribute('role','dialog');p.setAttribute('aria-label',t.nearby);
- p.innerHTML=`<div class="tr-top"><b>${esc(t.nearby)}</b><button type="button" class="tr-close" aria-label="${esc(t.close)}">✕</button></div><div class="tr-body"><div class="near-all">${$('nearby').innerHTML}</div></div>`;
- p.querySelector('.tr-close').addEventListener('click',()=>showNearby(false));document.body.append(shade,p);}
+// The top card has two tabs: Your trip and Nearby. The choice is remembered;
+// without a saved trip it starts on Nearby.
+let tab=read('dashboard_tab')||(read('dashboard_trip')?'trip':'near');
+function showTab(t){tab=t==='near'?'near':'trip';write('dashboard_tab',tab);
+ document.querySelectorAll('[data-tab]').forEach(b=>{const on=b.dataset.tab===tab;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});
+ $('trip').classList.toggle('hidden',tab!=='trip');$('nearby').classList.toggle('hidden',tab!=='near');$('locateBtn').classList.toggle('hidden',tab!=='near');}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 
 // ---------------------------------------------------------------- Favourites
 // Favourites are glance cards with big live minutes: first MTR, first bus, then the rest.
@@ -239,18 +238,18 @@ const tripMode=()=>tripSide||(hkNow().min<14*60?'work':'home');
 const clock=at=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(at);
 async function renderTrip(){
  const el=$('trip'),t=T(),trip=read(TRIP_KEY);
- if(!trip?.home||!trip?.work){el.innerHTML=`<div class="trip-hd"><span class="lbl">${esc(t.trip)}</span></div><div class="trip-empty"><p>${esc(t.setTripDesc)}</p></div><div class="actions"><button class="primary" type="button" data-act="setup">${esc(t.setTrip)}</button></div>`;return;}
+ if(!trip?.home||!trip?.work){el.innerHTML=`<div class="trip-empty"><p>${esc(t.setTripDesc)}</p></div><div class="actions"><button class="primary" type="button" data-act="setup">${esc(t.setTrip)}</button></div>`;return;}
  const m=await mtrData().catch(()=>null);if(!m)return;
  planner=planner||window.MTRPlan?.(m.lines,m.coords);
  const mode=tripMode(),from=mode==='work'?trip.home:trip.work,to=mode==='work'?trip.work:trip.home,p=planner?.plan(from,to);
- const pills=`<div class="pills"><button type="button" data-trip="work" class="${mode==='work'?'on':''}">${esc(t.toWork)}</button><button type="button" data-trip="home" class="${mode==='home'?'on':''}">${esc(t.toHome)}</button><button type="button" data-act="setup" aria-label="${esc(t.edit)}">✎</button></div>`;
- if(!p){el.innerHTML=`<div class="trip-hd"><span class="lbl">${esc(t.trip)}</span>${pills}</div><div class="trip-empty"><p>${esc(t.noRoute)}</p></div>`;return;}
+ const pills=`<div class="pills trip-pills"><button type="button" data-trip="work" class="${mode==='work'?'on':''}">${esc(t.toWork)}</button><button type="button" data-trip="home" class="${mode==='home'?'on':''}">${esc(t.toHome)}</button><button type="button" data-act="setup" aria-label="${esc(t.edit)}">✎</button></div>`;
+ if(!p){el.innerHTML=`${pills}<div class="trip-empty"><p>${esc(t.noRoute)}</p></div>`;return;}
  const rides=p.legs.filter(l=>l.line!=='WALK'),first=rides[0],last=rides[rides.length-1];
  const colour=l=>l.line==='WALK'?'var(--line)':m.lines[l.line]?.color||'#999';
  const bar=p.legs.map(l=>`<i style="flex:${Math.max(1,Math.round(l.min))};background:${colour(l)}"></i>`).join('');
  const steps=p.legs.map(l=>l.line==='WALK'?`<span>🚶 ${esc(t.walk)} ${Math.round(l.min)} ${esc(t.min)}</span>`:`<span><i style="background:${colour(l)}"></i>${esc(lineName(l.line))} · ${Math.round(l.min)} ${esc(t.min)}</span>`).join('');
  const details=`mtr-eta/#to=${encodeURIComponent(last.line+'|'+to)}&from=${encodeURIComponent(first.line+'|'+from)}`;
- el.innerHTML=`<div class="trip-hd"><span class="lbl">${esc(t.trip)}</span>${pills}</div>
+ el.innerHTML=`${pills}
   <div class="trip-main"><span class="n">${p.min}<small>${esc(t.min)}</small></span><div><b>${esc(t.minTo(stName(to)))}</b><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div></div></div>
   <div class="bar">${bar}</div><div class="trip-foot"><div class="steps">${steps}</div><div class="links"><a href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details)}</a></div></div>`;
  // The next train on the first line sets when you would arrive.
@@ -274,7 +273,7 @@ function showSetup(on){
  p.addEventListener('change',e=>{const side=e.target.dataset.line;if(side)fill(side);});
  p.querySelector('.tr-close').addEventListener('click',()=>showSetup(false));
  p.querySelector('[data-x="cancel"]').addEventListener('click',()=>showSetup(false));
- p.querySelector('[data-x="save"]').addEventListener('click',()=>{write(TRIP_KEY,{home:p.querySelector('[data-sta="home"]').value,work:p.querySelector('[data-sta="work"]').value});tripSide=null;showSetup(false);renderTrip();});
+ p.querySelector('[data-x="save"]').addEventListener('click',()=>{write(TRIP_KEY,{home:p.querySelector('[data-sta="home"]').value,work:p.querySelector('[data-sta="work"]').value});tripSide=null;showSetup(false);renderTrip();showTab('trip');});
  document.body.append(shade,p);
 }
 $('trip').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
@@ -335,13 +334,13 @@ function showNews(on){
  p.querySelector('.tr-close').addEventListener('click',()=>showNews(false));
  document.body.append(shade,p);
 }
-addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(newsOpen)showNews(false);if(nearOpen)showNearby(false);});
+addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(newsOpen)showNews(false);});
 async function refreshNews(){await loadNews();renderNews();}
 
 // ---------------------------------------------------------------- page
 function texts(){
  const t=T(),hl=tc()?'zh-Hant-HK':'en';if(document.documentElement.lang!==hl)document.documentElement.lang=hl;document.title=t.title;
- for(const [id,k] of [['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['locateLabel','locate'],['foot','foot'],['alertsName','alerts'],['nearAll','all']])$(id).textContent=t[k];
+ for(const [id,k] of [['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['tabTrip','trip'],['locateLabel','locate'],['foot','foot'],['alertsName','alerts']])$(id).textContent=t[k];
  const h=hkNow().min;$('title').textContent=t.greet[h>=5*60&&h<12*60?0:h>=12*60&&h<18*60?1:2];
  $('today').textContent=new Intl.DateTimeFormat(tc()?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',day:'numeric',month:'long',weekday:'long'}).format(new Date());
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
@@ -375,11 +374,10 @@ document.addEventListener('click',e=>{const a=e.target.closest('a[data-set]');if
  try{const {key,merge}=JSON.parse(a.dataset.set);write(key,{...(read(key)||{}),...merge});}catch{}});
 document.querySelectorAll('[data-lang]').forEach(b=>b.addEventListener('click',()=>{lang=b.dataset.lang;write('dashboard_lang',lang);showSetup(false);refresh();}));
 $('locateBtn').addEventListener('click',()=>locate(false));
-$('nearAll').addEventListener('click',()=>showNearby(true));
 // Back from an app, Safari may show this page from its cache: pick up changes made there.
 addEventListener('pageshow',e=>{if(!e.persisted)return;const l=read('dashboard_lang');if(TEXT[l])lang=l;refresh();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;
  if(!here&&(locState==='denied'||locState==='fail'))autoLocate();refresh();});
 setInterval(()=>{if(document.visibilityState==='visible')refresh();},30000);
 
-texts();renderTrip();renderNearby();renderFavs();refreshNews();autoLocate();
+texts();showTab(tab);renderTrip();renderNearby();renderFavs();refreshNews();autoLocate();

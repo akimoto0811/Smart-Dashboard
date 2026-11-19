@@ -38,6 +38,15 @@ h1{font-size:28px;letter-spacing:-1px;margin:0;line-height:1.1;font-weight:800}
 .actions .primary{background:var(--ink);color:var(--ink-fg)}
 .trip-empty p{margin:8px 0 0;color:var(--muted);font-size:13.5px;line-height:1.45}
 
+/* Top card tabs: Your trip / Nearby */
+.tabs-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.seg{display:flex;background:var(--panel2);border-radius:12px;padding:3px}
+.seg button{border:0;background:none;color:var(--muted);font-size:13px;font-weight:750;padding:6px 13px;border-radius:9px}
+.seg button.on{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px #1018281f}
+@media(prefers-color-scheme:dark){.seg button.on{background:#2a3a57}}
+.trip-pills{margin-bottom:2px}
+.near .row:last-child{border-bottom:0}.near .row{padding:8px 0}.near .empty{padding:6px 2px}
+
 /* Compact trip card */
 .trip{padding:13px 15px}
 .trip-main{display:flex;align-items:center;gap:12px;margin-top:8px}
@@ -122,7 +131,7 @@ h1{font-size:28px;letter-spacing:-1px;margin:0;line-height:1.1;font-weight:800}
 .row.muted .when{color:var(--muted);font-size:13px;font-weight:650}
 .empty{color:var(--muted);font-size:12.5px;line-height:1.5;padding:12px 2px}
 .foot{display:none}
-#nearby .row:nth-child(n+3){display:none}#nearby .row:nth-child(2){border-bottom:0}
+
 .near-all{padding-bottom:8px}
 @media(min-width:650px){.shell{padding-top:48px}h1{font-size:36px}}
 @media(max-width:350px){.tiles{gap:5px}.icon{width:36px;height:36px}.name{font-size:11px}.total .n{font-size:42px}}
