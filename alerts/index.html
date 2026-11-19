@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="HK Dashboard">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="../icons/icon-192.png">
 <link rel="manifest" href="../manifest.webmanifest?v=2.0.0">
-<link rel="stylesheet" href="../home.css?v=3.0.0">
+<link rel="stylesheet" href="../home.css?v=3.3.0"><link rel="stylesheet" href="../shared/signs.css?v=1.0.0">
 <title>Alerts · Smart Dashboard</title>
 <script>
 // Same release check as the other pages: reload when the ?v= numbers change.
@@ -16,19 +16,19 @@
  addEventListener('DOMContentLoaded',check);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
 </script>
 <style>
- .home-link{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:11px;font-size:12px;font-weight:700;text-decoration:none;margin:0 0 14px}
+ .home-link{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px 0 8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:6px;font-size:12px;font-weight:700;text-decoration:none;margin:0 0 14px}
  .home-link svg{width:15px;height:15px;fill:none;stroke:var(--mint);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
- .card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;margin-top:14px}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;margin-top:14px}
  .card h2{font-size:16px;margin:0 0 6px;letter-spacing:-.25px}
  .card p{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 12px}
  .status{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin-bottom:12px}
  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0}
  .status.on .dot{background:var(--mint)} .status.warn .dot{background:#e8b04b}
- .btn{display:block;width:100%;border:0;border-radius:14px;padding:13px;font-size:15px;font-weight:750;background:var(--ink);color:var(--ink-fg)}
+ .btn{display:block;width:100%;border:0;border-radius:8px;padding:13px;font-size:15px;font-weight:750;background:var(--ink);color:var(--ink-fg)}
  .btn.ghost{background:var(--panel2);color:var(--fg);margin-top:8px}
  .btn:disabled{opacity:.5}
  .msg{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:1em;line-height:1.5}
- .keys textarea{width:100%;box-sizing:border-box;background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;font:12px ui-monospace,Menlo,monospace;padding:8px;margin:4px 0 10px;resize:none}
+ .keys textarea{width:100%;box-sizing:border-box;background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:6px;font:12px ui-monospace,Menlo,monospace;padding:8px;margin:4px 0 10px;resize:none}
  .keys label{font-size:12px;font-weight:700;color:var(--muted)}
  .hidden{display:none}
  .fa{border-top:1px solid var(--line);padding:12px 0}
@@ -37,7 +37,7 @@
  .fa-head div{flex:1;min-width:0}
  .fa-head strong{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .fa-head small{display:block;color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- .fa-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px;background:#e6f6ee;flex:none}
+ .fa-ic{width:34px;height:34px;border-radius:6px;display:grid;place-items:center;font-size:17px;background:#e6f6ee;flex:none}
  .fa-ic.mtr{background:#fdecec}
  @media(prefers-color-scheme:dark){.fa-ic{background:#173326}.fa-ic.mtr{background:#3a1d22}}
  .switch{position:relative;width:46px;height:28px;flex:none}
@@ -49,10 +49,10 @@
  .switch input:disabled+span{opacity:.4}
  .fa-set{margin:12px 0 2px 46px;display:grid;gap:10px}
  .days{display:flex;gap:5px}
- .days button{flex:1;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:12px;font-weight:700;padding:0}
+ .days button{flex:1;height:32px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:12px;font-weight:700;padding:0}
  .days button.on{background:var(--ink);border-color:var(--ink);color:var(--ink-fg)}
  .fa-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-weight:650}
- .fa-row input,.fa-row select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:9px;height:34px;padding:0 8px;font:inherit;font-size:13.5px;font-weight:650;color-scheme:dark}
+ .fa-row input,.fa-row select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:6px;height:34px;padding:0 8px;font:inherit;font-size:13.5px;font-weight:650;color-scheme:dark}
  .fa-row input{width:112px}
  .fa-row select{flex:1;min-width:0}
  .fa-empty{color:var(--muted);font-size:13px;line-height:1.5}
@@ -61,7 +61,7 @@
 <body>
 <main class="shell">
  <a class="home-link" href="../"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span id="back">Dashboard</span></a>
- <h1 id="title" style="margin:0">Alerts</h1>
+ <h1 id="title" style="margin:6px 0 0">Alerts</h1>
 
  <section class="card hidden" id="installCard">
   <h2 id="installTitle">Add to Home Screen first</h2>
