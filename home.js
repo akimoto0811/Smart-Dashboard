@@ -12,13 +12,13 @@ const TEXT={
   loading:'Loading…',none:'No arrivals predicted',noBus:'No bus stop within 600 m',nothingNear:'No bus, MTR, tram or ferry nearby.',min:'min',due:'Due',to:'To',towards:'Towards',
   liveTram:'Open Tram for routes and fares',noLive:'No live times',noSailing:'No more sailings today',tomorrow:'tomorrow',apart:'min apart',offline:'Offline: live times unavailable',
   foot:'Add this page to your Home Screen to open every dashboard from one icon.',saved:n=>`${n} saved`,
-  traffic:'Traffic news',noTraffic:'No traffic incidents reported',trafficSrc:'Transport Department special traffic news',roads:'Roads',close:'Close'},
+  traffic:'Traffic news',noTraffic:'No traffic incidents reported',trafficSrc:'Transport Department special traffic news',roads:'Roads',close:'Close',alerts:'🔔 Alerts'},
  tc:{title:'智能交通資訊',place:'香港',bus:'巴士',mtr:'港鐵',tram:'電車',ferry:'渡輪',nearby:'附近',locate:'定位',favs:'收藏',
   locating:'正在定位…',denied:'請為此網站開啟定位，以查看附近交通。',noLocation:'無法取得位置，請按「定位」再試。',
   loading:'載入中…',none:'暫時沒有預報班次',noBus:'600 米內沒有巴士站',nothingNear:'附近沒有巴士、港鐵、電車或渡輪。',min:'分鐘',due:'即將到達',to:'往',towards:'往',
   liveTram:'開啟電車資訊查看路線及車費',noLive:'沒有實時班次',noSailing:'今日已無班次',tomorrow:'明天',apart:'分鐘一班',offline:'離線：未能取得實時資料',
   foot:'將此頁加至主畫面，即可從同一圖示開啟所有資訊板。',saved:n=>`已收藏 ${n} 個`,
-  traffic:'交通消息',noTraffic:'暫時沒有交通事故消息',trafficSrc:'運輸署特別交通消息',roads:'道路',close:'關閉'}};
+  traffic:'交通消息',noTraffic:'暫時沒有交通事故消息',trafficSrc:'運輸署特別交通消息',roads:'道路',close:'關閉',alerts:'🔔 提示通知'}};
 const ICON={
  bus:'<svg viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="21" rx="5"/><path d="M6 15h20M10 25v3m12-3v3M11 20h1m8 0h1M10 9h12"/></svg>',
  mtr:'<svg viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="23" rx="7"/><path d="M9 14h14M11 9h10M11 26l-3 4m13-4 3 4M12 20h2m4 0h2"/></svg>',
@@ -272,7 +272,7 @@ async function refreshNews(){await loadNews();renderNews();}
 // ---------------------------------------------------------------- page
 function texts(){
  const t=T();document.documentElement.lang=tc()?'zh-Hant-HK':'en';document.title=t.title;
- for(const [id,k] of [['title','title'],['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['locateLabel','locate'],['favTitle','favs'],['foot','foot']])$(id).textContent=t[k];
+ for(const [id,k] of [['title','title'],['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['locateLabel','locate'],['favTitle','favs'],['foot','foot'],['alertsLink','alerts']])$(id).textContent=t[k];
  const date=new Intl.DateTimeFormat(tc()?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',day:'numeric',month:tc()?'numeric':'long',year:tc()?'numeric':undefined,weekday:'short'}).format(new Date());
  $('today').textContent=(t.place+' · '+date).toUpperCase();
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));

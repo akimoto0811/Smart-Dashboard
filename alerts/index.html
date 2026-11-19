@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1120"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="HK Dashboard">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="../icons/icon-192.png">
+<link rel="manifest" href="../manifest.webmanifest?v=2.0.0">
+<link rel="stylesheet" href="../home.css?v=2.1.2">
+<title>Alerts · Smart Dashboard</title>
+<script>
+// Same release check as the other pages: reload when the ?v= numbers change.
+(()=>{const marks=doc=>[...doc.querySelectorAll('link[href*="?v="],script[src*="?v="]')].map(e=>e.getAttribute('href')||e.getAttribute('src')).join();
+ async function check(){try{const r=await fetch(location.pathname,{cache:'no-store'});if(!r.ok)return;const fresh=new DOMParser().parseFromString(await r.text(),'text/html'),theirs=marks(fresh);
+  if(!theirs||theirs===marks(document))return;const key='reloaded:'+location.pathname+theirs;if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');
+  location.replace(location.pathname+'?v='+encodeURIComponent(theirs.match(/\?v=([\w.-]+)/)[1]));}catch{}}
+ addEventListener('DOMContentLoaded',check);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});})();
+</script>
+<style>
+ .back{display:inline-block;color:var(--mint);text-decoration:none;font-size:14px;font-weight:700;margin-bottom:12px}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px;margin-top:14px}
+ .card h2{font-size:16px;margin:0 0 6px;letter-spacing:-.25px}
+ .card p{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 12px}
+ .status{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin-bottom:12px}
+ .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0}
+ .status.on .dot{background:var(--mint)} .status.warn .dot{background:#e8b04b}
+ .btn{display:block;width:100%;border:0;border-radius:14px;padding:13px;font-size:15px;font-weight:750;background:var(--mint);color:#06281a}
+ .btn.ghost{background:#1a2940;color:var(--fg);margin-top:8px}
+ .btn:disabled{opacity:.5}
+ .msg{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:1em;line-height:1.5}
+ .keys textarea{width:100%;box-sizing:border-box;background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;font:12px ui-monospace,Menlo,monospace;padding:8px;margin:4px 0 10px;resize:none}
+ .keys label{font-size:12px;font-weight:700;color:var(--muted)}
+ .hidden{display:none}
+</style>
+</head>
+<body>
+<main class="shell">
+ <a class="back" href="../" id="back">‹ Dashboard</a>
+ <h1 id="title" style="margin:0">Alerts</h1>
+
+ <section class="card hidden" id="installCard">
+  <h2 id="installTitle">Add to Home Screen first</h2>
+  <p id="installDesc">iPhone only allows notifications for apps on the Home Screen. In Safari, tap Share → Add to Home Screen, then open HK Dashboard from that icon and come back here.</p>
+ </section>
+
+ <section class="card" id="pushCard">
+  <h2 id="pushTitle">Notifications on this phone</h2>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">Checking…</span></div>
+  <button class="btn" id="enableBtn" type="button">Turn on notifications</button>
+  <button class="btn ghost hidden" id="testBtn" type="button">Send a test notification</button>
+  <div class="msg" id="msg"></div>
+ </section>
+
+ <section class="card">
+  <h2 id="soonTitle">Coming next</h2>
+  <p id="soonDesc">Choose favourite lines and stops, alert times for arrivals, and MTR service alerts during your commute hours.</p>
+ </section>
+
+ <section class="card keys hidden" id="keysCard">
+  <h2 id="keysTitle">Set up (owner only)</h2>
+  <p id="keysDesc">The server has no notification keys yet. Generate a pair here, then in Cloudflare open Workers &amp; Pages → smart-dashboard → Settings → Variables and Secrets and add both as secrets with these exact names. Keep the private key secret.</p>
+  <button class="btn ghost" id="genBtn" type="button">Generate keys</button>
+  <div id="keyOut" class="hidden" style="margin-top:12px">
+   <label>VAPID_PUBLIC_KEY</label><textarea id="pubOut" rows="3" readonly></textarea>
+   <label>VAPID_PRIVATE_KEY</label><textarea id="privOut" rows="2" readonly></textarea>
+  </div>
+ </section>
+</main>
+<script src="alerts.js?v=1.0.0" defer></script>
+</body>
+</html>

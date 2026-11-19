@@ -80,3 +80,33 @@ self.addEventListener('fetch', event => {
     return network.catch(() => Response.error());
   })());
 });
+
+// ---------------------------------------------------------------- notifications
+// The Worker sends { title, body, url, tag }. iOS only delivers these to the
+// Home Screen app, and requires every push to show a notification.
+self.addEventListener('push', event => {
+  let m = {};
+  try { m = event.data ? event.data.json() : {}; } catch { m = { body: event.data && event.data.text() }; }
+  const scope = self.registration.scope;
+  event.waitUntil(self.registration.showNotification(m.title || 'HK Dashboard', {
+    body: m.body || '',
+    tag: m.tag || undefined,
+    icon: new URL('icons/icon-192.png', scope).href,
+    badge: new URL('icons/icon-192.png', scope).href,
+    data: { url: new URL(m.url || './', scope).href },
+  }));
+});
+
+// Tapping a notification opens (or focuses) the page it points to.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || self.registration.scope;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      if (w.url === target && 'focus' in w) return w.focus();
+    }
+    if (wins[0] && 'navigate' in wins[0]) { await wins[0].navigate(target); return wins[0].focus(); }
+    return self.clients.openWindow(target);
+  })());
+});
