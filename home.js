@@ -250,8 +250,9 @@ async function renderTrip(){
  const steps=p.legs.map(l=>l.line==='WALK'?`<span>🚶 ${esc(t.walk)} ${Math.round(l.min)} ${esc(t.min)}</span>`:`<span><i style="background:${colour(l)}"></i>${esc(lineName(l.line))} · ${Math.round(l.min)} ${esc(t.min)}</span>`).join('');
  const details=`mtr-eta/#to=${encodeURIComponent(last.line+'|'+to)}&from=${encodeURIComponent(first.line+'|'+from)}`;
  el.innerHTML=`${pills}
-  <div class="trip-main"><span class="n">${p.min}<small>${esc(t.min)}</small></span><div><b>${esc(t.minTo(stName(to)))}</b><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div></div></div>
-  <div class="bar">${bar}</div><div class="trip-foot"><div class="steps">${steps}</div><div class="links"><a href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details)}</a></div></div>`;
+  <div class="total"><span class="n">${p.min}</span><span>${esc(t.min)} ${esc(t.minTo(stName(to)))}</span></div><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div>
+  <div class="bar">${bar}</div><div class="steps">${steps}</div>
+  <div class="actions"><a class="primary" href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details).replace(' ›','')}</a></div>`;
  // The next train on the first line sets when you would arrive.
  try{const list=await trainsDir(first.line,from,first.dir);if(!list.length||$('tripArr')==null)return;
   const w=list[0];$('tripArr').textContent=t.nextArrive(w<=0?t.due:`${w} ${t.min}`,clock(Date.now()+(w+p.min)*60000));}catch{}
