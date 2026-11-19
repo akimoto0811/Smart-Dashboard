@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1120"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="HK Dashboard">
+<meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="HK Dashboard">
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="../icons/icon-192.png">
 <link rel="manifest" href="../manifest.webmanifest?v=2.0.0">
-<link rel="stylesheet" href="../home.css?v=2.1.3">
+<link rel="stylesheet" href="../home.css?v=3.0.0">
 <title>Alerts · Smart Dashboard</title>
 <script>
 // Same release check as the other pages: reload when the ?v= numbers change.
@@ -24,8 +24,8 @@
  .status{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin-bottom:12px}
  .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0}
  .status.on .dot{background:var(--mint)} .status.warn .dot{background:#e8b04b}
- .btn{display:block;width:100%;border:0;border-radius:14px;padding:13px;font-size:15px;font-weight:750;background:var(--mint);color:#06281a}
- .btn.ghost{background:#1a2940;color:var(--fg);margin-top:8px}
+ .btn{display:block;width:100%;border:0;border-radius:14px;padding:13px;font-size:15px;font-weight:750;background:var(--ink);color:var(--ink-fg)}
+ .btn.ghost{background:var(--panel2);color:var(--fg);margin-top:8px}
  .btn:disabled{opacity:.5}
  .msg{font-size:12.5px;color:var(--muted);margin-top:10px;min-height:1em;line-height:1.5}
  .keys textarea{width:100%;box-sizing:border-box;background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;font:12px ui-monospace,Menlo,monospace;padding:8px;margin:4px 0 10px;resize:none}
@@ -37,19 +37,20 @@
  .fa-head div{flex:1;min-width:0}
  .fa-head strong{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .fa-head small{display:block;color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- .fa-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px;background:#173326;flex:none}
- .fa-ic.mtr{background:#3a1d22}
+ .fa-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px;background:#e6f6ee;flex:none}
+ .fa-ic.mtr{background:#fdecec}
+ @media(prefers-color-scheme:dark){.fa-ic{background:#173326}.fa-ic.mtr{background:#3a1d22}}
  .switch{position:relative;width:46px;height:28px;flex:none}
  .switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
- .switch span{position:absolute;inset:0;border-radius:99px;background:#2a3852;transition:background .15s}
- .switch span:after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#dfe6f2;transition:transform .15s}
+ .switch span{position:absolute;inset:0;border-radius:99px;background:var(--line);transition:background .15s}
+ .switch span:after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0003;transition:transform .15s}
  .switch input:checked+span{background:var(--mint)}
  .switch input:checked+span:after{transform:translateX(18px)}
  .switch input:disabled+span{opacity:.4}
  .fa-set{margin:12px 0 2px 46px;display:grid;gap:10px}
  .days{display:flex;gap:5px}
  .days button{flex:1;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:12px;font-weight:700;padding:0}
- .days button.on{background:#173326;border-color:#3d8b66;color:var(--mint)}
+ .days button.on{background:var(--ink);border-color:var(--ink);color:var(--ink-fg)}
  .fa-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-weight:650}
  .fa-row input,.fa-row select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:9px;height:34px;padding:0 8px;font:inherit;font-size:13.5px;font-weight:650;color-scheme:dark}
  .fa-row input{width:112px}
@@ -92,7 +93,7 @@
   </div>
  </section>
 </main>
-<script src="../shared/weather.js?v=1.2.5" defer></script>
+<script src="../shared/weather.js?v=1.2.6" defer></script>
 <script src="alerts.js?v=1.1.0" defer></script>
 </body>
 </html>
