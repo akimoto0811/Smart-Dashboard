@@ -196,3 +196,6 @@ select{height:40px;padding-top:8px;padding-bottom:8px;border-radius:13px}
 .route-card.alt{border-color:var(--line);padding:11px 15px 14px;margin-bottom:8px}
 .route-card.alt .rc-top{margin-bottom:11px}
 .route-card.alt .rc-time b{font-size:24px}
+
+/* Home Screen app: the page runs under the status bar, so start content below it. */
+@media (display-mode: standalone){.app{padding-top:calc(env(safe-area-inset-top) + 14px)!important}}

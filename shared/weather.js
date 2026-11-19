@@ -106,8 +106,8 @@ function panelHTML(){const l=lang(),t=TEXT[l],c=cache[l];if(!c||!c.rh)return `<p
   `<div class="wx-src">${esc(t.src)}${n.place?' · '+esc(l==='tc'?n.place+'測站':n.place+' station'):''} · ${esc(t.updated)} ${esc(hhmm(n.updated))}</div>`;}
 
 const STYLE=`.wx-row{display:flex;align-items:stretch;justify-content:space-between;gap:10px}.wx-row>.home-link{margin-bottom:0;height:auto}
-.wx-row{position:sticky;top:0;z-index:40;padding:calc(8px + env(safe-area-inset-top,0px)) 0 8px;margin-top:-8px!important}
-.wx-row:before{content:'';position:absolute;top:0;bottom:0;left:calc(50% - 50vw);right:calc(50% - 50vw);z-index:-1;background:#0b1222;opacity:0;transition:opacity .2s;border-bottom:1px solid #ffffff14}
+.wx-row{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;padding:8px 0;margin-top:-8px!important}
+.wx-row:before{content:'';position:absolute;top:calc(-1 * env(safe-area-inset-top,0px));bottom:0;left:calc(50% - 50vw);right:calc(50% - 50vw);z-index:-1;background:#0b1222;opacity:0;transition:opacity .2s;border-bottom:1px solid #ffffff14}
 .wx-row.stuck:before{opacity:1}
 .wx-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #293650;background:#131d30;color:#f0f4fc;border-radius:13px;padding:3px 11px 3px 9px;font:inherit;font-size:13px;line-height:1;cursor:pointer;white-space:nowrap;max-width:62vw;overflow:hidden}
 .wx-pill b{font-weight:800}.wx-lines{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;overflow:hidden}.wx-line{display:flex;align-items:center;gap:6px;max-width:100%;line-height:1.1}.wx-where{color:#93a0b9;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}#weather .wx-where{font-size:12px}.wx-ic{font-size:16px;line-height:1}.wx-place{overflow:hidden;text-overflow:ellipsis;min-width:0}.wx-dim{color:#93a0b9}

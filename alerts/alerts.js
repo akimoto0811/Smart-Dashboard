@@ -8,7 +8,7 @@ document.documentElement.lang = lang === 'tc' ? 'zh-Hant-HK' : 'en';
 const TEXT = {
   en: {},
   tc: {
-    back: '‹ 主頁', title: '提示通知',
+    back: '主頁', title: '提示通知',
     installTitle: '請先加入主畫面', installDesc: 'iPhone 只容許主畫面上的 App 發出通知。請在 Safari 按「分享」→「加入主畫面」，再由該圖示開啟 HK Dashboard 並返回此頁。',
     pushTitle: '此手機的通知', enableBtn: '開啟通知', testBtn: '發送測試通知',
     soonTitle: '即將推出', soonDesc: '揀選常用路線及車站、設定到站提示時間，以及在上下班時段接收港鐵車務消息。',
