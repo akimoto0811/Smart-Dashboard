@@ -1,0 +1,17 @@
+/* Hong Kong street signs, shared by the Bus, MTR, Tram, Ferry and Alerts pages.
+   Loaded after each page's own stylesheet. The sticky Dashboard + weather bar
+   becomes a road-sign green band with a yellow rule, corners get squarer, and
+   the bottom tab bar marks the open tab in sign green. Version 1.0.0. */
+:root{--sign:#00704a;--sign-fg:#fff;--sign-sub:#cfe8dc;--sign-deep:#005c3c;--signal:#ffd200;--signal-fg:#1a1a1a}
+@media(prefers-color-scheme:dark){:root{--sign:#00573a;--sign-sub:#a9d4c0;--sign-deep:#00432c;--signal:#f2c500}}
+body{font-family:"Helvetica Neue",-apple-system,BlinkMacSystemFont,Arial,"PingFang TC",sans-serif}
+
+/* The green band: always shown, not only once scrolled. */
+body .wx-row{margin-bottom:14px}
+body .wx-row:before{opacity:1;background:var(--sign);top:calc(-1 * env(safe-area-inset-top,0px) - 60px);border-bottom:4px solid var(--signal)}
+body .wx-row .home-link{background:var(--sign-deep);border-color:transparent;color:var(--sign-fg);border-radius:6px}
+body .wx-row .home-link svg{stroke:var(--signal)}
+body .wx-row .wx-pill{background:var(--sign-deep);border-color:transparent;color:var(--sign-fg);border-radius:6px;box-shadow:none}
+body .wx-row .wx-pill *{color:inherit}
+body .wx-row .wx-pill .wx-warn{color:var(--signal-fg);background:var(--signal);border-color:var(--signal)}
+body .wx-panel{border-radius:10px}

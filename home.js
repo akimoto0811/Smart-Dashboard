@@ -197,7 +197,7 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()
 const badge=(text,bg,fg='#fff')=>`<span class="badge" style="background:${esc(bg)};color:${esc(fg)}">${esc(text)}</span>`;
 function glance(it){const t=T(),m=it.mins;
  const big=it.bigHtml?`<div class="big">${it.bigHtml}</div>`:it.loading?'<div class="big none">…</div>':m.length?`<div class="big">${m[0]<=0?esc(t.due):`${m[0]}<small>${esc(t.min)}</small>`}</div>`:`<div class="big none">${esc(t.none)}</div>`;
- return `<a class="card gl row-like" href="${it.href}"${it.set?` data-set='${esc(JSON.stringify(it.set))}'`:''}>${badge(it.badge,it.bg,it.fg)}${big}<div class="sub"><b>${esc(it.place)}</b>${it.dest?' · '+esc(it.dest):''}</div><div class="then">${m.length>1?esc(t.then+' '+m.slice(1,3).join(', ')):''}</div></a>`;}
+ return `<a class="card gl row-like" style="--stripe:${esc(it.bg)}" href="${it.href}"${it.set?` data-set='${esc(JSON.stringify(it.set))}'`:''}>${badge(it.badge,it.bg,it.fg)}${big}<div class="sub"><b>${esc(it.place)}</b>${it.dest?' · '+esc(it.dest):''}</div><div class="then">${m.length>1?esc(t.then+' '+m.slice(1,3).join(', ')):''}</div></a>`;}
 async function renderFavs(){
  const t=T(),now=hkNow();
  const bus=(read('hkbus_favourites_v2')||[]).filter(f=>Array.isArray(f?.variants)&&f.variants.length);
@@ -249,6 +249,7 @@ async function renderTrip(){
  const bar=p.legs.map(l=>`<i style="flex:${Math.max(1,Math.round(l.min))};background:${colour(l)}"></i>`).join('');
  const steps=p.legs.map(l=>l.line==='WALK'?`<span>🚶 ${esc(t.walk)} ${Math.round(l.min)} ${esc(t.min)}</span>`:`<span><i style="background:${colour(l)}"></i>${esc(lineName(l.line))} · ${Math.round(l.min)} ${esc(t.min)}</span>`).join('');
  const details=`mtr-eta/#to=${encodeURIComponent(last.line+'|'+to)}&from=${encodeURIComponent(first.line+'|'+from)}`;
+ el.closest('.trip')?.style.setProperty('--stripe',colour(first));
  $('tripPills').innerHTML=pills;el.innerHTML=`<div class="total"><span class="n">${p.min}</span><span>${esc(t.min)} ${esc(t.minTo(stName(to)))}</span></div><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div>
   <div class="bar">${bar}</div><div class="steps">${steps}</div>
   <div class="actions"><a class="primary" href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details).replace(' ›','')}</a></div>`;

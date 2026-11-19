@@ -1,10 +1,12 @@
-/* Light & clean, and dark when the phone is in dark mode. */
-:root{color-scheme:light dark;--bg:#f3f5f9;--panel:#fff;--panel2:#f2f4f7;--line:#e4e7ec;--sep:#eef0f4;--fg:#101828;--muted:#667085;--mint:#0f8a52;--ink:#101828;--ink-fg:#fff;
- --shadow:0 1px 3px #1018280f,0 8px 24px #1018280a;--warn-bg:#fff7ea;--warn-line:#f8dfb3;--warn-fg:#7a4b00;
- --wx-page:#f3f5f9;--wx-bg:#fff;--wx-line:#e4e7ec;--wx-fg:#101828;--wx-muted:#667085;--wx-accent:#0f8a52;--wx-sub:#f2f4f7;--wx-shadow:0 18px 50px rgba(16,24,40,.18);--wx-pill-shadow:0 1px 3px #1018281a;--wx-warn-bg:#fff7ea;--wx-warn-line:#f8dfb3;--wx-warn-fg:#7a4b00}
-@media(prefers-color-scheme:dark){:root{--bg:#0b1120;--panel:#131d30;--panel2:#1a2940;--line:#293650;--sep:#223049;--fg:#f0f4fc;--muted:#93a0b9;--mint:#6cdea4;--ink:#6cdea4;--ink-fg:#06281a;
- --shadow:none;--warn-bg:#2a1d0f;--warn-line:#5a3d16;--warn-fg:#ffd08a;
- --wx-page:#0b1222;--wx-bg:#131d30;--wx-line:#293650;--wx-fg:#f0f4fc;--wx-muted:#93a0b9;--wx-accent:#6cdea4;--wx-sub:#0f1728;--wx-shadow:0 18px 50px rgba(0,0,0,.55);--wx-pill-shadow:none;--wx-warn-bg:#3a2c12;--wx-warn-line:#8a6a24;--wx-warn-fg:#ffd98c}}
+/* Hong Kong street signs: road-sign green, signal yellow, square corners. Dark when the phone is in dark mode. */
+:root{color-scheme:light dark;--bg:#eef1ee;--panel:#fff;--panel2:#eef1ee;--line:#d5dcd7;--sep:#e6ebe7;--fg:#1a1a1a;--muted:#5f6b66;--mint:#00704a;--ink:#00704a;--ink-fg:#fff;
+ --sign:#00704a;--sign-fg:#fff;--sign-sub:#cfe8dc;--sign-deep:#005c3c;--signal:#ffd200;--signal-fg:#1a1a1a;
+ --shadow:none;--warn-bg:#ffd200;--warn-line:#ffd200;--warn-fg:#1a1a1a;
+ --wx-page:#eef1ee;--wx-bg:#fff;--wx-line:#d5dcd7;--wx-fg:#1a1a1a;--wx-muted:#5f6b66;--wx-accent:#00704a;--wx-sub:#eef1ee;--wx-shadow:0 18px 50px rgba(0,40,25,.2);--wx-pill-shadow:none;--wx-warn-bg:#fff3b0;--wx-warn-line:#ffd200;--wx-warn-fg:#5c4500}
+@media(prefers-color-scheme:dark){:root{--bg:#0d1411;--panel:#16201b;--panel2:#1f2b25;--line:#2c3a33;--sep:#24312b;--fg:#eef3f0;--muted:#97a69f;--mint:#5fd39d;--ink:#00875a;--ink-fg:#fff;
+ --sign:#00573a;--sign-fg:#fff;--sign-sub:#a9d4c0;--sign-deep:#00432c;--signal:#f2c500;--signal-fg:#1a1a1a;
+ --shadow:none;--warn-bg:#f2c500;--warn-line:#f2c500;--warn-fg:#1a1a1a;
+ --wx-page:#0d1411;--wx-bg:#16201b;--wx-line:#2c3a33;--wx-fg:#eef3f0;--wx-muted:#97a69f;--wx-accent:#5fd39d;--wx-sub:#111a16;--wx-shadow:0 18px 50px rgba(0,0,0,.55);--wx-pill-shadow:none;--wx-warn-bg:#3a2c12;--wx-warn-line:#8a6a24;--wx-warn-fg:#ffd98c}}
 *{box-sizing:border-box}
 html{background:var(--bg)}
 body{margin:0;min-height:100dvh;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang TC",Segoe UI,sans-serif;-webkit-font-smoothing:antialiased}
@@ -18,7 +20,6 @@ h1{font-size:28px;letter-spacing:-1px;margin:0;line-height:1.1;font-weight:800}
 .lang button{border:0;background:none;color:var(--muted);font-size:12px;font-weight:700;padding:6px 10px;border-radius:9px}
 .lang button.on{background:var(--ink);color:var(--ink-fg)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);padding:16px;margin-bottom:12px}
-@media(prefers-color-scheme:light){.card,.tile,.list,.lang{border-color:transparent}}
 
 /* Your trip */
 .trip-hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -43,7 +44,7 @@ h1{font-size:28px;letter-spacing:-1px;margin:0;line-height:1.1;font-weight:800}
 .seg{display:flex;background:var(--panel2);border-radius:12px;padding:3px}
 .seg button{border:0;background:none;color:var(--muted);font-size:13px;font-weight:750;padding:6px 13px;border-radius:9px}
 .seg button.on{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px #1018281f}
-@media(prefers-color-scheme:dark){.seg button.on{background:#2a3a57}}
+@media(prefers-color-scheme:dark){.seg button.on{background:#2f3f37}}
 .trip-pills{gap:4px}.trip-pills button{padding:6px 9px;white-space:nowrap}
 .seg button{white-space:nowrap}
 .near .row:last-child{border-bottom:0}.near .row{padding:8px 0}.near .empty{padding:6px 2px}
@@ -162,5 +163,37 @@ h1{font-size:28px;letter-spacing:-1px;margin:0;line-height:1.1;font-weight:800}
 .pick select{flex:1;min-width:0;appearance:none;-webkit-appearance:none;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 11px;font-size:14px;font-weight:600}
 .setup .actions{padding:4px 15px 15px;margin:0}
 
-/* Home Screen app: the page runs under the status bar, so start content below it. */
-@media (display-mode: standalone){.shell{padding-top:calc(env(safe-area-inset-top) + 14px)!important}}
+/* Street signs: a green road-sign band across the top with a yellow rule,
+   squarer corners, flat cards with a thin outline, and colour stripes taken
+   from the line or route (set as --stripe by home.js). */
+body{font-family:"Helvetica Neue",-apple-system,BlinkMacSystemFont,Arial,"PingFang TC",sans-serif}
+.shell{padding-top:0}
+.top{background:var(--sign);color:var(--sign-fg);margin:0 -16px 12px;padding:max(22px,calc(env(safe-area-inset-top) + 14px)) 18px 14px;border-bottom:5px solid var(--signal)}
+.top .eyebrow{color:var(--sign-sub);text-transform:uppercase;letter-spacing:1.4px;font-size:11px;font-weight:700}
+.top h1{font-size:30px;letter-spacing:-.6px}
+.top .lang{background:var(--sign-deep);border:0;box-shadow:none}
+.top .lang button{color:var(--sign-sub)}
+.top .lang button.on{background:var(--signal);color:var(--signal-fg)}
+.card{border-radius:8px}
+.tile{border-radius:8px}
+.list{border-radius:8px}
+.icon,.row .ic{border-radius:6px}
+.badge{border-radius:4px}
+.seg{border-radius:6px}.seg button{border-radius:4px}
+.pills button,.actions a,.actions button,.pick select,.tr-close{border-radius:6px}
+.tr-panel{border-radius:10px}
+.trip{border-left:6px solid var(--stripe,var(--sign))}
+.gl{border-top:5px solid var(--stripe,var(--sign))}
+.total .n{letter-spacing:-2.5px;color:var(--fg)}
+body .wx-pill,body #weather .wx-pill{border-radius:8px}body .wx-panel{border-radius:10px}
+.gl .big{color:var(--fg)}
+.traffic-card{border-radius:6px;font-weight:600}
+.traffic-card.quiet{font-weight:400}
+.tr-where{color:var(--muted)}
+@media(min-width:650px){.top{margin-top:0;border-radius:0 0 10px 10px}}
+/* Short phones (iPhone SE size): a slimmer band so the menu still fits one screen. */
+@media(max-height:700px){.top{padding-top:max(12px,calc(env(safe-area-inset-top) + 8px));padding-bottom:9px;margin-bottom:10px}.top h1{font-size:24px}.top .eyebrow{font-size:10px}
+ .total{margin-top:6px}.total .n{font-size:40px}.actions{margin-top:10px}.actions a,.actions button{padding:9px}.gl{padding:9px 12px}.gl .big{font-size:26px;margin-top:6px}.weather,.traffic{margin-bottom:8px}.card{margin-bottom:10px}}
+
+/* Home Screen app: the green band reaches up behind the status bar. */
+@media (display-mode: standalone){.shell{padding-top:0!important}.top{padding-top:calc(env(safe-area-inset-top) + 14px)}}
