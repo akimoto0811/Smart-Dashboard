@@ -31,6 +31,30 @@
  .keys textarea{width:100%;box-sizing:border-box;background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:10px;font:12px ui-monospace,Menlo,monospace;padding:8px;margin:4px 0 10px;resize:none}
  .keys label{font-size:12px;font-weight:700;color:var(--muted)}
  .hidden{display:none}
+ .fa{border-top:1px solid var(--line);padding:12px 0}
+ .fa:first-child{border-top:0;padding-top:4px}
+ .fa-head{display:flex;align-items:center;gap:12px}
+ .fa-head div{flex:1;min-width:0}
+ .fa-head strong{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .fa-head small{display:block;color:var(--muted);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .fa-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px;background:#173326;flex:none}
+ .fa-ic.mtr{background:#3a1d22}
+ .switch{position:relative;width:46px;height:28px;flex:none}
+ .switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+ .switch span{position:absolute;inset:0;border-radius:99px;background:#2a3852;transition:background .15s}
+ .switch span:after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#dfe6f2;transition:transform .15s}
+ .switch input:checked+span{background:var(--mint)}
+ .switch input:checked+span:after{transform:translateX(18px)}
+ .switch input:disabled+span{opacity:.4}
+ .fa-set{margin:12px 0 2px 46px;display:grid;gap:10px}
+ .days{display:flex;gap:5px}
+ .days button{flex:1;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-size:12px;font-weight:700;padding:0}
+ .days button.on{background:#173326;border-color:#3d8b66;color:var(--mint)}
+ .fa-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);font-weight:650}
+ .fa-row input,.fa-row select{background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:9px;height:34px;padding:0 8px;font:inherit;font-size:13.5px;font-weight:650;color-scheme:dark}
+ .fa-row input{width:112px}
+ .fa-row select{flex:1;min-width:0}
+ .fa-empty{color:var(--muted);font-size:13px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -51,9 +75,11 @@
   <div class="msg" id="msg"></div>
  </section>
 
- <section class="card">
-  <h2 id="soonTitle">Coming next</h2>
-  <p id="soonDesc">Choose favourite lines and stops, alert times for arrivals, and MTR service alerts during your commute hours.</p>
+ <section class="card" id="favCard">
+  <h2 id="favTitle">Favourite alerts</h2>
+  <p id="favDesc">Pick a favourite, the days and the time you travel. You get a notification when the next bus or train is close.</p>
+  <div id="favList"></div>
+  <div class="msg" id="favMsg"></div>
  </section>
 
  <section class="card keys hidden" id="keysCard">
@@ -67,6 +93,6 @@
  </section>
 </main>
 <script src="../shared/weather.js?v=1.2.5" defer></script>
-<script src="alerts.js?v=1.0.1" defer></script>
+<script src="alerts.js?v=1.1.0" defer></script>
 </body>
 </html>
