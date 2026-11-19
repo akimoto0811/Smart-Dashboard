@@ -109,3 +109,6 @@ details.more[open] summary:after{content:'⌃'}
 .toast{position:fixed;z-index:20;bottom:85px;left:50%;transform:translateX(-50%);background:#194437;border:1px solid #408d73;color:#d7ffec;border-radius:99px;padding:10px 15px;font-size:12px;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
 @media(min-width:650px){.app{padding-top:40px}h1{font-size:36px}}
 @media(max-width:350px){.app{padding-inline:14px}.eta-number{font-size:34px}}
+
+/* Home Screen app: the page runs under the status bar, so start content below it. */
+@media (display-mode: standalone){.app{padding-top:calc(env(safe-area-inset-top) + 14px)!important}}
