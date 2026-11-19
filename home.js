@@ -15,8 +15,8 @@ const TEXT={
   traffic:'Traffic news',noTraffic:'No traffic incidents reported',trafficSrc:'Transport Department special traffic news',roads:'Roads',close:'Close',alerts:'Alerts',
   greet:['Good morning','Good afternoon','Good evening'],trip:'Your trip',toWork:'To work',toHome:'Home',edit:'Edit trip',setTrip:'Set up your trip',
   setTripDesc:'Pick the MTR stations nearest your home and work. The card then shows your trip with live trains: to work in the morning, home after 2 pm.',
-  homeSt:'Home station',workSt:'Work station',save:'Save',cancel:'Cancel',minTo:n=>`min to ${n}`,nextArrive:(w,a)=>`Next train ${w} · arrive ${a}`,arrive:a=>`Arrive about ${a}`,
-  remind:'🔔 Remind me',details:'Details',walk:'Walk',noRoute:'No MTR route between these stations.',then:'then',more:'More favourites'},
+  homeSt:'Home station',workSt:'Work station',save:'Save',cancel:'Cancel',minTo:n=>`to ${n}`,nextArrive:(w,a)=>`Next train ${w} · arrive ${a}`,arrive:a=>`Arrive about ${a}`,
+  remind:'🔔 Remind me',details:'Details ›',all:'All ›',walk:'Walk',noRoute:'No MTR route between these stations.',then:'then',more:'More favourites'},
  tc:{title:'智能交通資訊',place:'香港',bus:'巴士',mtr:'港鐵',tram:'電車',ferry:'渡輪',nearby:'附近',locate:'定位',favs:'收藏',
   locating:'正在定位…',denied:'請為此網站開啟定位，以查看附近交通。',noLocation:'無法取得位置，請按「定位」再試。',
   loading:'載入中…',none:'暫時沒有預報班次',noBus:'600 米內沒有巴士站',nothingNear:'附近沒有巴士、港鐵、電車或渡輪。',min:'分鐘',due:'即將到達',to:'往',towards:'往',
@@ -25,8 +25,8 @@ const TEXT={
   traffic:'交通消息',noTraffic:'暫時沒有交通事故消息',trafficSrc:'運輸署特別交通消息',roads:'道路',close:'關閉',alerts:'提示',
   greet:['早晨','午安','晚安'],trip:'我的行程',toWork:'返工',toHome:'返屋企',edit:'修改行程',setTrip:'設定行程',
   setTripDesc:'選擇住所及公司附近的港鐵站。卡片會顯示行程及實時列車：早上顯示返工，下午 2 時後顯示返屋企。',
-  homeSt:'住所車站',workSt:'公司車站',save:'儲存',cancel:'取消',minTo:n=>`分鐘到${n}`,nextArrive:(w,a)=>`下一班 ${w} · 約 ${a} 到達`,arrive:a=>`約 ${a} 到達`,
-  remind:'🔔 提示我',details:'詳情',walk:'步行',noRoute:'這兩個車站之間沒有港鐵路線。',then:'之後',more:'更多收藏'}};
+  homeSt:'住所車站',workSt:'公司車站',save:'儲存',cancel:'取消',minTo:n=>`往${n}`,nextArrive:(w,a)=>`下一班 ${w} · 約 ${a} 到達`,arrive:a=>`約 ${a} 到達`,
+  remind:'🔔 提示我',details:'詳情 ›',all:'全部 ›',walk:'步行',noRoute:'這兩個車站之間沒有港鐵路線。',then:'之後',more:'更多收藏'}};
 const ICON={
  bus:'<svg viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="21" rx="5"/><path d="M6 15h20M10 25v3m12-3v3M11 20h1m8 0h1M10 9h12"/></svg>',
  mtr:'<svg viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="23" rx="7"/><path d="M9 14h14M11 9h10M11 26l-3 4m13-4 3 4M12 20h2m4 0h2"/></svg>',
@@ -132,7 +132,9 @@ async function renderNearby(){
  const now=hkNow(),rows=[],jobs=[];
  // Each mode fills its own row as soon as its data arrives.
  // A newer render (a sharper location came in) takes over: this one stops drawing.
- const slot=(k,html)=>{if(me!==renders)return;rows[k]=html;el.innerHTML=rows.filter(Boolean).join('');};
+ const slot=(k,html)=>{if(me!==renders)return;rows[k]=html;const all=rows.filter(Boolean);el.innerHTML=all.join('');
+  // Two rows fit on the menu; All opens the full list.
+  $('nearAll').classList.toggle('hidden',all.length<3);if(nearOpen)showNearby(true);};
  slot(0,row({kind:'bus',href:'bus-eta/',title:t.bus,sub:t.loading}));
  slot(1,row({kind:'mtr',href:'mtr-eta/',title:t.mtr,sub:t.loading}));
  slot(2,row({kind:'tram',href:'tram-eta/',title:t.tram,sub:t.loading}));
@@ -184,22 +186,26 @@ async function renderNearby(){
  if(me===renders&&!rows.some(Boolean))el.innerHTML=`<div class="empty">${esc(t.nothingNear)}</div>`;
 }
 
+let nearOpen=false;
+function showNearby(on){nearOpen=on;document.querySelectorAll('.near-panel,.near-shade').forEach(e=>e.remove());if(!on)return;
+ const t=T(),shade=document.createElement('div');shade.className='tr-shade near-shade';shade.addEventListener('click',()=>showNearby(false));
+ const p=document.createElement('div');p.className='tr-panel near-panel';p.setAttribute('role','dialog');p.setAttribute('aria-label',t.nearby);
+ p.innerHTML=`<div class="tr-top"><b>${esc(t.nearby)}</b><button type="button" class="tr-close" aria-label="${esc(t.close)}">✕</button></div><div class="tr-body"><div class="near-all">${$('nearby').innerHTML}</div></div>`;
+ p.querySelector('.tr-close').addEventListener('click',()=>showNearby(false));document.body.append(shade,p);}
+
 // ---------------------------------------------------------------- Favourites
-// The first MTR and first bus favourite get a big glance card with live minutes;
-// the rest are listed under More favourites.
+// Favourites are glance cards with big live minutes: first MTR, first bus, then the rest.
 const badge=(text,bg,fg='#fff')=>`<span class="badge" style="background:${esc(bg)};color:${esc(fg)}">${esc(text)}</span>`;
 function glance(it){const t=T(),m=it.mins;
- const big=it.loading?'<div class="big none">…</div>':m.length?`<div class="big">${m[0]<=0?esc(t.due):`${m[0]}<small>${esc(t.min)}</small>`}</div>`:`<div class="big none">${esc(t.none)}</div>`;
- return `<a class="card gl" href="${it.href}">${badge(it.badge,it.bg,it.fg)}${big}<div class="sub"><b>${esc(it.place)}</b>${it.dest?' · '+esc(it.dest):''}</div><div class="then">${m.length>1?esc(t.then+' '+m.slice(1,3).join(', ')):''}</div></a>`;}
-function favRow(it){const t=T(),m=it.mins;if(it.html)return it.html;
- return row({kind:it.kind,href:it.href,title:it.kind==='mtr'?`${it.place} · ${it.dest}`:`${it.badge} ${it.dest||''}`.trim(),sub:[it.kind==='mtr'?'':it.place,m.length>1?`${t.then} ${m.slice(1,3).join(', ')}`:''].filter(Boolean).join(' · '),when:m.length?whenHTML(m[0]):'',muted:!it.loading&&!m.length});}
+ const big=it.bigHtml?`<div class="big">${it.bigHtml}</div>`:it.loading?'<div class="big none">…</div>':m.length?`<div class="big">${m[0]<=0?esc(t.due):`${m[0]}<small>${esc(t.min)}</small>`}</div>`:`<div class="big none">${esc(t.none)}</div>`;
+ return `<a class="card gl row-like" href="${it.href}"${it.set?` data-set='${esc(JSON.stringify(it.set))}'`:''}>${badge(it.badge,it.bg,it.fg)}${big}<div class="sub"><b>${esc(it.place)}</b>${it.dest?' · '+esc(it.dest):''}</div><div class="then">${m.length>1?esc(t.then+' '+m.slice(1,3).join(', ')):''}</div></a>`;}
 async function renderFavs(){
  const t=T(),now=hkNow();
  const bus=(read('hkbus_favourites_v2')||[]).filter(f=>Array.isArray(f?.variants)&&f.variants.length);
  const mtrFav=(read('mtr_eta_v1_prefs')?.favourites||[]).filter(x=>typeof x==='string'&&x.includes('|'));
  const ferryFav=(read('ferry_prefs')?.favourites||[]).filter(f=>f&&f.s);
  const total=bus.length+mtrFav.length+ferryFav.length;
- if(!total){$('glance').innerHTML='';$('favBlock').classList.add('hidden');return;}
+ if(!total){$('glance').innerHTML='';return;}
  if(mtrFav.length)await mtrData().catch(()=>null);
  const mtrItems=mtrFav.slice(0,3).map(key=>{const [line,sta]=key.split('|');
   return {kind:'mtr',line,sta,href:`mtr-eta/#to=${encodeURIComponent(key)}`,badge:line,bg:mtr?.lines[line]?.color||'#e2231a',place:stName(sta),dest:lineName(line),mins:[],loading:true};});
@@ -207,16 +213,14 @@ async function renderFavs(){
   const dest=tc()?f.destination_tc||f.destination||f.destination_en:f.destination_en||f.destination||'';
   // Open the Bus app on this route's stop list, with the saved stop marked.
   return {kind:'bus',f,href:`bus-eta/#fav=${encodeURIComponent(v.route+'|'+v.stop_id)}`,badge:f.route,bg,fg,place:(tc()?f.name_tc||f.name:f.name_en||f.name)||'',dest:dest?`${t.to} ${dest}`:'',mins:[],loading:true};});
- const top=[mtrItems[0],busItems[0]].filter(Boolean);
- while(top.length<2&&(mtrItems.length+busItems.length)>top.length){const next=[...mtrItems,...busItems].find(x=>!top.includes(x));if(!next)break;top.push(next);}
- const rest=[...mtrItems,...busItems].filter(x=>!top.includes(x));
+ const cards=[...mtrItems.slice(0,1),...busItems.slice(0,1),...mtrItems.slice(1),...busItems.slice(1)];
  if(ferryFav.length){try{const d=await load('ferry-eta/ferry-data.json');
   ferryFav.slice(0,3).forEach(f=>{const s=d.services.find(x=>x.id===f.s);const dir=s?.dirs[f.d];if(!dir)return;
    const n=nextSailing(dir,d,now),w=sailingWhen(n,now);
-   rest.push({html:row({kind:'ferry',href:'ferry-eta/',title:`${place(d,dir.f)} → ${place(d,dir.t)}`,sub:w.sub||(tc()?s.tc:s.en),when:w.html,muted:!n,set:{key:'ferry_prefs',merge:{service:s.id,dir:f.d}}})});});
+   cards.push({kind:'ferry',href:'ferry-eta/',badge:'⛴',bg:'#1e6fd9',place:`${place(d,dir.f)} → ${place(d,dir.t)}`,dest:'',mins:[],bigHtml:w.html||esc(t.noSailing),set:{key:'ferry_prefs',merge:{service:s.id,dir:f.d}}});});
  }catch{}}
- const draw=()=>{$('glance').innerHTML=top.map(glance).join('');
-  $('favBlock').classList.toggle('hidden',!rest.length);$('favs').innerHTML=rest.map(favRow).join('');};
+ // All favourites are cards in one row: two show, swipe sideways for the rest.
+ const draw=()=>{$('glance').innerHTML=cards.map(glance).join('');$('glance').classList.toggle('many',cards.length>2);};
  draw();
  const live=async it=>{try{
   if(it.kind==='mtr'){const both=await Promise.all(['UP','DOWN'].map(d=>trainsDir(it.line,it.sta,d).catch(()=>[])));it.mins=both.flat().sort((a,b)=>a-b);}
@@ -247,9 +251,8 @@ async function renderTrip(){
  const steps=p.legs.map(l=>l.line==='WALK'?`<span>🚶 ${esc(t.walk)} ${Math.round(l.min)} ${esc(t.min)}</span>`:`<span><i style="background:${colour(l)}"></i>${esc(lineName(l.line))} · ${Math.round(l.min)} ${esc(t.min)}</span>`).join('');
  const details=`mtr-eta/#to=${encodeURIComponent(last.line+'|'+to)}&from=${encodeURIComponent(first.line+'|'+from)}`;
  el.innerHTML=`<div class="trip-hd"><span class="lbl">${esc(t.trip)}</span>${pills}</div>
-  <div class="total"><span class="n">${p.min}</span><span>${esc(t.minTo(stName(to)))}</span></div><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div>
-  <div class="bar">${bar}</div><div class="steps">${steps}</div>
-  <div class="actions"><a class="primary" href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details)}</a></div>`;
+  <div class="trip-main"><span class="n">${p.min}<small>${esc(t.min)}</small></span><div><b>${esc(t.minTo(stName(to)))}</b><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div></div></div>
+  <div class="bar">${bar}</div><div class="trip-foot"><div class="steps">${steps}</div><div class="links"><a href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details)}</a></div></div>`;
  // The next train on the first line sets when you would arrive.
  try{const list=await trainsDir(first.line,from,first.dir);if(!list.length||$('tripArr')==null)return;
   const w=list[0];$('tripArr').textContent=t.nextArrive(w<=0?t.due:`${w} ${t.min}`,clock(Date.now()+(w+p.min)*60000));}catch{}
@@ -311,7 +314,7 @@ function newsGroups(){const g=new Map();for(const n of news||[]){const m=modeOf(
 function renderNews(){
  const el=$('traffic');if(!news){el.innerHTML='';return;}
  const t=T();
- if(!news.length){el.innerHTML=`<div class="traffic-card quiet"><span class="tr-ic">🚦</span><span>${esc(t.noTraffic)}</span></div>`;showNews(false);return;}
+ if(!news.length){el.innerHTML='';showNews(false);return;}
  el.innerHTML=`<button class="traffic-card" type="button" aria-haspopup="dialog"><span class="tr-ic">🚦</span><span class="tr-sum"><b>${esc(t.traffic)} <span class="tr-n">${news.length}</span></b>`+
   `<small>${newsGroups().map(([m,l])=>`${esc(modeName(m))} ${l.length}`).join(' · ')}</small></span><span class="tr-chev">›</span></button>`;
  el.querySelector('button').addEventListener('click',()=>showNews(true));
@@ -332,13 +335,13 @@ function showNews(on){
  p.querySelector('.tr-close').addEventListener('click',()=>showNews(false));
  document.body.append(shade,p);
 }
-addEventListener('keydown',e=>{if(e.key==='Escape'&&newsOpen)showNews(false);});
+addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(newsOpen)showNews(false);if(nearOpen)showNearby(false);});
 async function refreshNews(){await loadNews();renderNews();}
 
 // ---------------------------------------------------------------- page
 function texts(){
  const t=T(),hl=tc()?'zh-Hant-HK':'en';if(document.documentElement.lang!==hl)document.documentElement.lang=hl;document.title=t.title;
- for(const [id,k] of [['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['locateLabel','locate'],['favTitle','more'],['foot','foot'],['alertsName','alerts']])$(id).textContent=t[k];
+ for(const [id,k] of [['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['locateLabel','locate'],['foot','foot'],['alertsName','alerts'],['nearAll','all']])$(id).textContent=t[k];
  const h=hkNow().min;$('title').textContent=t.greet[h>=5*60&&h<12*60?0:h>=12*60&&h<18*60?1:2];
  $('today').textContent=new Intl.DateTimeFormat(tc()?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',day:'numeric',month:'long',weekday:'long'}).format(new Date());
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
@@ -368,10 +371,11 @@ async function autoLocate(){
 addEventListener('dashboard:here',e=>take(e.detail));
 
 // Tapping a nearby or favourite row opens that app on the same stop or route.
-document.addEventListener('click',e=>{const a=e.target.closest('a.row[data-set]');if(!a)return;
+document.addEventListener('click',e=>{const a=e.target.closest('a[data-set]');if(!a)return;
  try{const {key,merge}=JSON.parse(a.dataset.set);write(key,{...(read(key)||{}),...merge});}catch{}});
 document.querySelectorAll('[data-lang]').forEach(b=>b.addEventListener('click',()=>{lang=b.dataset.lang;write('dashboard_lang',lang);showSetup(false);refresh();}));
 $('locateBtn').addEventListener('click',()=>locate(false));
+$('nearAll').addEventListener('click',()=>showNearby(true));
 // Back from an app, Safari may show this page from its cache: pick up changes made there.
 addEventListener('pageshow',e=>{if(!e.persisted)return;const l=read('dashboard_lang');if(TEXT[l])lang=l;refresh();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;
