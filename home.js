@@ -13,7 +13,7 @@ const TEXT={
   liveTram:'Open Tram for routes and fares',noLive:'No live times',noSailing:'No more sailings today',tomorrow:'tomorrow',apart:'min apart',offline:'Offline: live times unavailable',
   foot:'Add this page to your Home Screen to open every dashboard from one icon.',saved:n=>`${n} saved`,
   traffic:'Traffic news',noTraffic:'No traffic incidents reported',trafficSrc:'Transport Department special traffic news',roads:'Roads',close:'Close',alerts:'Alerts',
-  greet:['Good morning','Good afternoon','Good evening'],trip:'Your trip',toWork:'To work',toHome:'Home',edit:'Edit trip',setTrip:'Set up your trip',
+  greet:['Good morning','Good afternoon','Good evening'],trip:'Your trip',tripTab:'Trip',toWork:'To work',toHome:'Home',edit:'Edit trip',setTrip:'Set up your trip',
   setTripDesc:'Pick the MTR stations nearest your home and work. The card then shows your trip with live trains: to work in the morning, home after 2 pm.',
   homeSt:'Home station',workSt:'Work station',save:'Save',cancel:'Cancel',minTo:n=>`to ${n}`,nextArrive:(w,a)=>`Next train ${w} · arrive ${a}`,arrive:a=>`Arrive about ${a}`,
   remind:'🔔 Remind me',details:'Details ›',all:'All ›',walk:'Walk',noRoute:'No MTR route between these stations.',then:'then',more:'More favourites'},
@@ -23,7 +23,7 @@ const TEXT={
   liveTram:'開啟電車資訊查看路線及車費',noLive:'沒有實時班次',noSailing:'今日已無班次',tomorrow:'明天',apart:'分鐘一班',offline:'離線：未能取得實時資料',
   foot:'將此頁加至主畫面，即可從同一圖示開啟所有資訊板。',saved:n=>`已收藏 ${n} 個`,
   traffic:'交通消息',noTraffic:'暫時沒有交通事故消息',trafficSrc:'運輸署特別交通消息',roads:'道路',close:'關閉',alerts:'提示',
-  greet:['早晨','午安','晚安'],trip:'我的行程',toWork:'返工',toHome:'返屋企',edit:'修改行程',setTrip:'設定行程',
+  greet:['早晨','午安','晚安'],trip:'我的行程',tripTab:'行程',toWork:'返工',toHome:'返屋企',edit:'修改行程',setTrip:'設定行程',
   setTripDesc:'選擇住所及公司附近的港鐵站。卡片會顯示行程及實時列車：早上顯示返工，下午 2 時後顯示返屋企。',
   homeSt:'住所車站',workSt:'公司車站',save:'儲存',cancel:'取消',minTo:n=>`往${n}`,nextArrive:(w,a)=>`下一班 ${w} · 約 ${a} 到達`,arrive:a=>`約 ${a} 到達`,
   remind:'🔔 提示我',details:'詳情 ›',all:'全部 ›',walk:'步行',noRoute:'這兩個車站之間沒有港鐵路線。',then:'之後',more:'更多收藏'}};
@@ -189,7 +189,7 @@ async function renderNearby(){
 let tab=read('dashboard_tab')||(read('dashboard_trip')?'trip':'near');
 function showTab(t){tab=t==='near'?'near':'trip';write('dashboard_tab',tab);
  document.querySelectorAll('[data-tab]').forEach(b=>{const on=b.dataset.tab===tab;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);});
- $('trip').classList.toggle('hidden',tab!=='trip');$('nearby').classList.toggle('hidden',tab!=='near');$('locateBtn').classList.toggle('hidden',tab!=='near');}
+ $('trip').classList.toggle('hidden',tab!=='trip');$('nearby').classList.toggle('hidden',tab!=='near');$('locateBtn').classList.toggle('hidden',tab!=='near');$('tripPills').classList.toggle('hidden',tab!=='trip');}
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 
 // ---------------------------------------------------------------- Favourites
@@ -238,19 +238,18 @@ const tripMode=()=>tripSide||(hkNow().min<14*60?'work':'home');
 const clock=at=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(at);
 async function renderTrip(){
  const el=$('trip'),t=T(),trip=read(TRIP_KEY);
- if(!trip?.home||!trip?.work){el.innerHTML=`<div class="trip-empty"><p>${esc(t.setTripDesc)}</p></div><div class="actions"><button class="primary" type="button" data-act="setup">${esc(t.setTrip)}</button></div>`;return;}
+ if(!trip?.home||!trip?.work){$('tripPills').innerHTML='';el.innerHTML=`<div class="trip-empty"><p>${esc(t.setTripDesc)}</p></div><div class="actions"><button class="primary" type="button" data-act="setup">${esc(t.setTrip)}</button></div>`;return;}
  const m=await mtrData().catch(()=>null);if(!m)return;
  planner=planner||window.MTRPlan?.(m.lines,m.coords);
  const mode=tripMode(),from=mode==='work'?trip.home:trip.work,to=mode==='work'?trip.work:trip.home,p=planner?.plan(from,to);
  const pills=`<div class="pills trip-pills"><button type="button" data-trip="work" class="${mode==='work'?'on':''}">${esc(t.toWork)}</button><button type="button" data-trip="home" class="${mode==='home'?'on':''}">${esc(t.toHome)}</button><button type="button" data-act="setup" aria-label="${esc(t.edit)}">✎</button></div>`;
- if(!p){el.innerHTML=`${pills}<div class="trip-empty"><p>${esc(t.noRoute)}</p></div>`;return;}
+ if(!p){$('tripPills').innerHTML=pills;el.innerHTML=`<div class="trip-empty"><p>${esc(t.noRoute)}</p></div>`;return;}
  const rides=p.legs.filter(l=>l.line!=='WALK'),first=rides[0],last=rides[rides.length-1];
  const colour=l=>l.line==='WALK'?'var(--line)':m.lines[l.line]?.color||'#999';
  const bar=p.legs.map(l=>`<i style="flex:${Math.max(1,Math.round(l.min))};background:${colour(l)}"></i>`).join('');
  const steps=p.legs.map(l=>l.line==='WALK'?`<span>🚶 ${esc(t.walk)} ${Math.round(l.min)} ${esc(t.min)}</span>`:`<span><i style="background:${colour(l)}"></i>${esc(lineName(l.line))} · ${Math.round(l.min)} ${esc(t.min)}</span>`).join('');
  const details=`mtr-eta/#to=${encodeURIComponent(last.line+'|'+to)}&from=${encodeURIComponent(first.line+'|'+from)}`;
- el.innerHTML=`${pills}
-  <div class="total"><span class="n">${p.min}</span><span>${esc(t.min)} ${esc(t.minTo(stName(to)))}</span></div><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div>
+ $('tripPills').innerHTML=pills;el.innerHTML=`<div class="total"><span class="n">${p.min}</span><span>${esc(t.min)} ${esc(t.minTo(stName(to)))}</span></div><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div>
   <div class="bar">${bar}</div><div class="steps">${steps}</div>
   <div class="actions"><a class="primary" href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details).replace(' ›','')}</a></div>`;
  // The next train on the first line sets when you would arrive.
@@ -277,7 +276,7 @@ function showSetup(on){
  p.querySelector('[data-x="save"]').addEventListener('click',()=>{write(TRIP_KEY,{home:p.querySelector('[data-sta="home"]').value,work:p.querySelector('[data-sta="work"]').value});tripSide=null;showSetup(false);renderTrip();showTab('trip');});
  document.body.append(shade,p);
 }
-$('trip').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
+$('trip').parentElement.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
  if(b.dataset.trip){tripSide=b.dataset.trip;renderTrip();}
  else if(b.dataset.act==='setup'){await mtrData().catch(()=>null);showSetup(true);}});
 
@@ -341,7 +340,7 @@ async function refreshNews(){await loadNews();renderNews();}
 // ---------------------------------------------------------------- page
 function texts(){
  const t=T(),hl=tc()?'zh-Hant-HK':'en';if(document.documentElement.lang!==hl)document.documentElement.lang=hl;document.title=t.title;
- for(const [id,k] of [['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['tabTrip','trip'],['locateLabel','locate'],['foot','foot'],['alertsName','alerts']])$(id).textContent=t[k];
+ for(const [id,k] of [['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['tabTrip','tripTab'],['locateLabel','locate'],['foot','foot'],['alertsName','alerts']])$(id).textContent=t[k];
  const h=hkNow().min;$('title').textContent=t.greet[h>=5*60&&h<12*60?0:h>=12*60&&h<18*60?1:2];
  $('today').textContent=new Intl.DateTimeFormat(tc()?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',day:'numeric',month:'long',weekday:'long'}).format(new Date());
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
