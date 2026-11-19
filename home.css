@@ -44,7 +44,8 @@ h1{font-size:28px;letter-spacing:-1px;margin:0;line-height:1.1;font-weight:800}
 .seg button{border:0;background:none;color:var(--muted);font-size:13px;font-weight:750;padding:6px 13px;border-radius:9px}
 .seg button.on{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px #1018281f}
 @media(prefers-color-scheme:dark){.seg button.on{background:#2a3a57}}
-.trip-pills{margin-bottom:2px}
+.trip-pills{gap:4px}.trip-pills button{padding:6px 9px;white-space:nowrap}
+.seg button{white-space:nowrap}
 .near .row:last-child{border-bottom:0}.near .row{padding:8px 0}.near .empty{padding:6px 2px}
 
 /* Compact trip card */
