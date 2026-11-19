@@ -189,9 +189,11 @@ function renderFavs() {
 }
 
 let saveTimer = 0;
-function changed() {
+// redraw = false for time, lead and direction edits: redrawing replaces the
+// inputs, which closes the phone's time picker while it is still open.
+function changed(redraw = true) {
   try { localStorage.setItem(ALERTS_KEY, JSON.stringify(alerts)); } catch {}
-  renderFavs();
+  if (redraw) renderFavs();
   clearTimeout(saveTimer); saveTimer = setTimeout(saveToServer, 500);
 }
 
@@ -241,6 +243,7 @@ $('favList').addEventListener('change', e => {
   } else if (a) {
     if ((k === 'start' || k === 'end') && !/^\d{2}:\d{2}$/.test(el.value)) return;
     a[k] = k === 'lead' ? +el.value : el.value;
+    return changed(false);
   }
   changed();
 });
