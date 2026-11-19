@@ -12,18 +12,27 @@ const TEXT={
   loading:'Loading…',none:'No arrivals predicted',noBus:'No bus stop within 600 m',nothingNear:'No bus, MTR, tram or ferry nearby.',min:'min',due:'Due',to:'To',towards:'Towards',
   liveTram:'Open Tram for routes and fares',noLive:'No live times',noSailing:'No more sailings today',tomorrow:'tomorrow',apart:'min apart',offline:'Offline: live times unavailable',
   foot:'Add this page to your Home Screen to open every dashboard from one icon.',saved:n=>`${n} saved`,
-  traffic:'Traffic news',noTraffic:'No traffic incidents reported',trafficSrc:'Transport Department special traffic news',roads:'Roads',close:'Close',alerts:'🔔 Alerts'},
+  traffic:'Traffic news',noTraffic:'No traffic incidents reported',trafficSrc:'Transport Department special traffic news',roads:'Roads',close:'Close',alerts:'Alerts',
+  greet:['Good morning','Good afternoon','Good evening'],trip:'Your trip',toWork:'To work',toHome:'Home',edit:'Edit trip',setTrip:'Set up your trip',
+  setTripDesc:'Pick the MTR stations nearest your home and work. The card then shows your trip with live trains: to work in the morning, home after 2 pm.',
+  homeSt:'Home station',workSt:'Work station',save:'Save',cancel:'Cancel',minTo:n=>`min to ${n}`,nextArrive:(w,a)=>`Next train ${w} · arrive ${a}`,arrive:a=>`Arrive about ${a}`,
+  remind:'🔔 Remind me',details:'Details',walk:'Walk',noRoute:'No MTR route between these stations.',then:'then',more:'More favourites'},
  tc:{title:'智能交通資訊',place:'香港',bus:'巴士',mtr:'港鐵',tram:'電車',ferry:'渡輪',nearby:'附近',locate:'定位',favs:'收藏',
   locating:'正在定位…',denied:'請為此網站開啟定位，以查看附近交通。',noLocation:'無法取得位置，請按「定位」再試。',
   loading:'載入中…',none:'暫時沒有預報班次',noBus:'600 米內沒有巴士站',nothingNear:'附近沒有巴士、港鐵、電車或渡輪。',min:'分鐘',due:'即將到達',to:'往',towards:'往',
   liveTram:'開啟電車資訊查看路線及車費',noLive:'沒有實時班次',noSailing:'今日已無班次',tomorrow:'明天',apart:'分鐘一班',offline:'離線：未能取得實時資料',
   foot:'將此頁加至主畫面，即可從同一圖示開啟所有資訊板。',saved:n=>`已收藏 ${n} 個`,
-  traffic:'交通消息',noTraffic:'暫時沒有交通事故消息',trafficSrc:'運輸署特別交通消息',roads:'道路',close:'關閉',alerts:'🔔 提示通知'}};
+  traffic:'交通消息',noTraffic:'暫時沒有交通事故消息',trafficSrc:'運輸署特別交通消息',roads:'道路',close:'關閉',alerts:'提示',
+  greet:['早晨','午安','晚安'],trip:'我的行程',toWork:'返工',toHome:'返屋企',edit:'修改行程',setTrip:'設定行程',
+  setTripDesc:'選擇住所及公司附近的港鐵站。卡片會顯示行程及實時列車：早上顯示返工，下午 2 時後顯示返屋企。',
+  homeSt:'住所車站',workSt:'公司車站',save:'儲存',cancel:'取消',minTo:n=>`分鐘到${n}`,nextArrive:(w,a)=>`下一班 ${w} · 約 ${a} 到達`,arrive:a=>`約 ${a} 到達`,
+  remind:'🔔 提示我',details:'詳情',walk:'步行',noRoute:'這兩個車站之間沒有港鐵路線。',then:'之後',more:'更多收藏'}};
 const ICON={
  bus:'<svg viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="21" rx="5"/><path d="M6 15h20M10 25v3m12-3v3M11 20h1m8 0h1M10 9h12"/></svg>',
  mtr:'<svg viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="23" rx="7"/><path d="M9 14h14M11 9h10M11 26l-3 4m13-4 3 4M12 20h2m4 0h2"/></svg>',
  tram:'<svg viewBox="0 0 32 32"><rect x="7" y="8" width="18" height="17" rx="4"/><path d="M7 16h18M12 3h8M16 3v5M11 25l-3 4m13-4 3 4M12 20h1m6 0h1"/></svg>',
  ferry:'<svg viewBox="0 0 32 32"><path d="M5 19l3 6h16l3-6zM9 19v-7h14v7M13 12V7h6v5M4 29c3 0 3-1.5 6-1.5s3 1.5 6 1.5 3-1.5 6-1.5 3 1.5 6 1.5"/></svg>'};
+const BUS_COLOUR={KMB:['#d81e05','#fff'],LWB:['#f26f22','#fff'],CTB:['#f9b000','#1a1200']};
 
 let lang=read('dashboard_lang')||read('hkbus_lang')||(navigator.language.startsWith('zh')?'tc':'en');
 if(!TEXT[lang])lang='en';
@@ -59,6 +68,9 @@ async function nextTrains(line,sta){
  const j=await getJSON(`https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${line}&sta=${sta}&lang=${tc()?'TC':'EN'}`);
  const d=j?.data?.[`${line}-${sta}`]||{};
  return ['UP','DOWN'].map(k=>(d[k]||[])[0]).filter(Boolean).map(x=>({dest:x.dest,min:+x.ttnt}));}
+async function trainsDir(line,sta,dir){
+ const j=await getJSON(`https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${line}&sta=${sta}`);
+ return ((j?.data?.[`${line}-${sta}`]||{})[dir]||[]).map(x=>+x.ttnt).filter(Number.isFinite).sort((a,b)=>a-b);}
 function trainText(list){return list.map(x=>`${T().to} ${stName(x.dest)} ${x.min<=0?T().due:x.min+' '+T().min}`).join(' · ');}
 
 // ---------------------------------------------------------------- bus
@@ -173,44 +185,98 @@ async function renderNearby(){
 }
 
 // ---------------------------------------------------------------- Favourites
+// The first MTR and first bus favourite get a big glance card with live minutes;
+// the rest are listed under More favourites.
+const badge=(text,bg,fg='#fff')=>`<span class="badge" style="background:${esc(bg)};color:${esc(fg)}">${esc(text)}</span>`;
+function glance(it){const t=T(),m=it.mins;
+ const big=it.loading?'<div class="big none">…</div>':m.length?`<div class="big">${m[0]<=0?esc(t.due):`${m[0]}<small>${esc(t.min)}</small>`}</div>`:`<div class="big none">${esc(t.none)}</div>`;
+ return `<a class="card gl" href="${it.href}">${badge(it.badge,it.bg,it.fg)}${big}<div class="sub"><b>${esc(it.place)}</b>${it.dest?' · '+esc(it.dest):''}</div><div class="then">${m.length>1?esc(t.then+' '+m.slice(1,3).join(', ')):''}</div></a>`;}
+function favRow(it){const t=T(),m=it.mins;if(it.html)return it.html;
+ return row({kind:it.kind,href:it.href,title:it.kind==='mtr'?`${it.place} · ${it.dest}`:`${it.badge} ${it.dest||''}`.trim(),sub:[it.kind==='mtr'?'':it.place,m.length>1?`${t.then} ${m.slice(1,3).join(', ')}`:''].filter(Boolean).join(' · '),when:m.length?whenHTML(m[0]):'',muted:!it.loading&&!m.length});}
 async function renderFavs(){
- const t=T(),el=$('favs'),now=hkNow();
+ const t=T(),now=hkNow();
  const bus=(read('hkbus_favourites_v2')||[]).filter(f=>Array.isArray(f?.variants)&&f.variants.length);
  const mtrFav=(read('mtr_eta_v1_prefs')?.favourites||[]).filter(x=>typeof x==='string'&&x.includes('|'));
  const ferryFav=(read('ferry_prefs')?.favourites||[]).filter(f=>f&&f.s);
  const total=bus.length+mtrFav.length+ferryFav.length;
- $('favBlock').classList.toggle('hidden',!total);if(!total)return;
- $('favHint').textContent=t.saved(total);
- const items=[];
- const draw=()=>{el.innerHTML=items.filter(Boolean).join('');};
- const jobs=[];
- bus.slice(0,4).forEach((f,k)=>{
-  const title=`${f.route} ${t.to} ${tc()?f.destination_tc||f.destination||f.destination_en:f.destination_en||f.destination||''}`;
-  const stop=(tc()?f.name_tc||f.name:f.name_en||f.name)||'';
-  // Open the Bus app on this route's stop list, with the saved stop marked.
-  const href=`bus-eta/#fav=${encodeURIComponent(f.variants[0].route+'|'+f.variants[0].stop_id)}`;
-  items.push(row({kind:'bus',href,title,sub:stop}));
-  const idx=items.length-1;
-  jobs.push((async()=>{try{
-   const all=(await Promise.all(f.variants.map(async v=>{const url=v.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(v.stop_id)}/${encodeURIComponent(v.route)}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${encodeURIComponent(v.stop_id)}/${encodeURIComponent(v.route)}/${encodeURIComponent(v.service_type||'1')}`;
-    try{const j=await getJSON(url);return (j.data||[]).filter(x=>String(x.route).trim()===v.route&&(!x.dir||x.dir===v.direction)&&x.eta).map(x=>Date.parse(x.eta)).filter(a=>Number.isFinite(a)&&a>Date.now()-30000);}catch{return [];}}))).flat().sort((a,b)=>a-b);
-   items[idx]=row({kind:'bus',href,title,sub:all.length>1?`${stop} · ${all.slice(1,3).map(a=>mins(a)+' '+t.min).join(', ')}`:stop,when:all.length?whenHTML(mins(all[0])):'',muted:!all.length});draw();
-  }catch{}})());
- });
+ if(!total){$('glance').innerHTML='';$('favBlock').classList.add('hidden');return;}
  if(mtrFav.length)await mtrData().catch(()=>null);
- mtrFav.slice(0,3).forEach(key=>{
-  // Open the MTR Journey planner with this station as the destination.
-  const [line,sta]=key.split('|'),href=`mtr-eta/#to=${encodeURIComponent(key)}`,set=null;
-  items.push(row({kind:'mtr',href,title:stName(sta),sub:lineName(line)}));const idx=items.length-1;
-  jobs.push(nextTrains(line,sta).then(list=>{items[idx]=row({kind:'mtr',href,title:`${stName(sta)} · ${lineName(line)}`,sub:list.length?trainText(list):t.none,when:list.length?whenHTML(Math.min(...list.map(x=>x.min))):'',muted:!list.length,set});draw();}).catch(()=>{}));
- });
+ const mtrItems=mtrFav.slice(0,3).map(key=>{const [line,sta]=key.split('|');
+  return {kind:'mtr',line,sta,href:`mtr-eta/#to=${encodeURIComponent(key)}`,badge:line,bg:mtr?.lines[line]?.color||'#e2231a',place:stName(sta),dest:lineName(line),mins:[],loading:true};});
+ const busItems=bus.slice(0,4).map(f=>{const v=f.variants[0],[bg,fg]=BUS_COLOUR[v.operator]||BUS_COLOUR.KMB;
+  const dest=tc()?f.destination_tc||f.destination||f.destination_en:f.destination_en||f.destination||'';
+  // Open the Bus app on this route's stop list, with the saved stop marked.
+  return {kind:'bus',f,href:`bus-eta/#fav=${encodeURIComponent(v.route+'|'+v.stop_id)}`,badge:f.route,bg,fg,place:(tc()?f.name_tc||f.name:f.name_en||f.name)||'',dest:dest?`${t.to} ${dest}`:'',mins:[],loading:true};});
+ const top=[mtrItems[0],busItems[0]].filter(Boolean);
+ while(top.length<2&&(mtrItems.length+busItems.length)>top.length){const next=[...mtrItems,...busItems].find(x=>!top.includes(x));if(!next)break;top.push(next);}
+ const rest=[...mtrItems,...busItems].filter(x=>!top.includes(x));
  if(ferryFav.length){try{const d=await load('ferry-eta/ferry-data.json');
   ferryFav.slice(0,3).forEach(f=>{const s=d.services.find(x=>x.id===f.s);const dir=s?.dirs[f.d];if(!dir)return;
    const n=nextSailing(dir,d,now),w=sailingWhen(n,now);
-   items.push(row({kind:'ferry',href:'ferry-eta/',title:`${place(d,dir.f)} → ${place(d,dir.t)}`,sub:w.sub||(tc()?s.tc:s.en),when:w.html,muted:!n,set:{key:'ferry_prefs',merge:{service:s.id,dir:f.d}}}));});
+   rest.push({html:row({kind:'ferry',href:'ferry-eta/',title:`${place(d,dir.f)} → ${place(d,dir.t)}`,sub:w.sub||(tc()?s.tc:s.en),when:w.html,muted:!n,set:{key:'ferry_prefs',merge:{service:s.id,dir:f.d}}})});});
  }catch{}}
- draw();await Promise.all(jobs);
+ const draw=()=>{$('glance').innerHTML=top.map(glance).join('');
+  $('favBlock').classList.toggle('hidden',!rest.length);$('favs').innerHTML=rest.map(favRow).join('');};
+ draw();
+ const live=async it=>{try{
+  if(it.kind==='mtr'){const both=await Promise.all(['UP','DOWN'].map(d=>trainsDir(it.line,it.sta,d).catch(()=>[])));it.mins=both.flat().sort((a,b)=>a-b);}
+  else it.mins=(await Promise.all(it.f.variants.map(async v=>{const url=v.operator==='CTB'?`https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/${encodeURIComponent(v.stop_id)}/${encodeURIComponent(v.route)}`:`https://data.etabus.gov.hk/v1/transport/kmb/eta/${encodeURIComponent(v.stop_id)}/${encodeURIComponent(v.route)}/${encodeURIComponent(v.service_type||'1')}`;
+    try{const j=await getJSON(url);return (j.data||[]).filter(x=>String(x.route).trim()===v.route&&(!x.dir||x.dir===v.direction)&&x.eta).map(x=>Date.parse(x.eta)).filter(a=>Number.isFinite(a)&&a>Date.now()-30000);}catch{return [];}}))).flat().sort((a,b)=>a-b).map(mins);
+ }catch{}it.loading=false;draw();};
+ await Promise.all([...mtrItems,...busItems].map(live));
 }
+
+// ---------------------------------------------------------------- Your trip
+// Home and work MTR stations, set once. Before 2 pm the card shows the trip to
+// work, after that the trip home; the pills switch it by hand.
+const TRIP_KEY='dashboard_trip';
+let tripSide=null,planner=null;
+const tripMode=()=>tripSide||(hkNow().min<14*60?'work':'home');
+const clock=at=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Hong_Kong',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(at);
+async function renderTrip(){
+ const el=$('trip'),t=T(),trip=read(TRIP_KEY);
+ if(!trip?.home||!trip?.work){el.innerHTML=`<div class="trip-hd"><span class="lbl">${esc(t.trip)}</span></div><div class="trip-empty"><p>${esc(t.setTripDesc)}</p></div><div class="actions"><button class="primary" type="button" data-act="setup">${esc(t.setTrip)}</button></div>`;return;}
+ const m=await mtrData().catch(()=>null);if(!m)return;
+ planner=planner||window.MTRPlan?.(m.lines,m.coords);
+ const mode=tripMode(),from=mode==='work'?trip.home:trip.work,to=mode==='work'?trip.work:trip.home,p=planner?.plan(from,to);
+ const pills=`<div class="pills"><button type="button" data-trip="work" class="${mode==='work'?'on':''}">${esc(t.toWork)}</button><button type="button" data-trip="home" class="${mode==='home'?'on':''}">${esc(t.toHome)}</button><button type="button" data-act="setup" aria-label="${esc(t.edit)}">✎</button></div>`;
+ if(!p){el.innerHTML=`<div class="trip-hd"><span class="lbl">${esc(t.trip)}</span>${pills}</div><div class="trip-empty"><p>${esc(t.noRoute)}</p></div>`;return;}
+ const rides=p.legs.filter(l=>l.line!=='WALK'),first=rides[0],last=rides[rides.length-1];
+ const colour=l=>l.line==='WALK'?'var(--line)':m.lines[l.line]?.color||'#999';
+ const bar=p.legs.map(l=>`<i style="flex:${Math.max(1,Math.round(l.min))};background:${colour(l)}"></i>`).join('');
+ const steps=p.legs.map(l=>l.line==='WALK'?`<span>🚶 ${esc(t.walk)} ${Math.round(l.min)} ${esc(t.min)}</span>`:`<span><i style="background:${colour(l)}"></i>${esc(lineName(l.line))} · ${Math.round(l.min)} ${esc(t.min)}</span>`).join('');
+ const details=`mtr-eta/#to=${encodeURIComponent(last.line+'|'+to)}&from=${encodeURIComponent(first.line+'|'+from)}`;
+ el.innerHTML=`<div class="trip-hd"><span class="lbl">${esc(t.trip)}</span>${pills}</div>
+  <div class="total"><span class="n">${p.min}</span><span>${esc(t.minTo(stName(to)))}</span></div><div class="arr" id="tripArr">${esc(t.arrive(clock(Date.now()+p.min*60000)))}</div>
+  <div class="bar">${bar}</div><div class="steps">${steps}</div>
+  <div class="actions"><a class="primary" href="alerts/">${esc(t.remind)}</a><a href="${details}">${esc(t.details)}</a></div>`;
+ // The next train on the first line sets when you would arrive.
+ try{const list=await trainsDir(first.line,from,first.dir);if(!list.length||$('tripArr')==null)return;
+  const w=list[0];$('tripArr').textContent=t.nextArrive(w<=0?t.due:`${w} ${t.min}`,clock(Date.now()+(w+p.min)*60000));}catch{}
+}
+function showSetup(on){
+ document.querySelectorAll('.setup,.setup-shade').forEach(e=>e.remove());if(!on||!mtr)return;
+ const t=T(),trip=read(TRIP_KEY)||{};
+ // Start from the nearest station when there is no home yet.
+ let near=null;if(!trip.home&&here)for(const [c,p] of Object.entries(mtr.coords)){if(!mtr.linesOf.has(c))continue;const d=km(here,p);if(!near||d<near.d)near={c,d};}
+ const lines=Object.entries(mtr.lines).filter(([k])=>k!=='AEL');
+ const lineOf=c=>(mtr.linesOf.get(c)||[]).find(l=>l!=='AEL')||lines[0][0];
+ const picker=(side,code)=>{const line=lineOf(code);return `<div class="pick"><b>${esc(side==='home'?t.homeSt:t.workSt)}</b><div><select data-line="${side}">${lines.map(([k,l])=>`<option value="${k}"${k===line?' selected':''}>${esc(tc()?l.tc:l.en)}</option>`).join('')}</select><select data-sta="${side}"></select></div></div>`;};
+ const shade=document.createElement('div');shade.className='tr-shade setup-shade';shade.addEventListener('click',()=>showSetup(false));
+ const p=document.createElement('div');p.className='tr-panel setup';p.setAttribute('role','dialog');p.setAttribute('aria-label',t.setTrip);
+ p.innerHTML=`<div class="tr-top"><b>${esc(t.setTrip)}</b><button type="button" class="tr-close" aria-label="${esc(t.close)}">✕</button></div><div class="tr-body"><p>${esc(t.setTripDesc)}</p>${picker('home',trip.home||near?.c||'MOK')}${picker('work',trip.work||'CEN')}</div><div class="actions"><button type="button" data-x="cancel">${esc(t.cancel)}</button><button type="button" class="primary" data-x="save">${esc(t.save)}</button></div>`;
+ const fill=(side,keep)=>{const line=p.querySelector(`[data-line="${side}"]`).value,sel=p.querySelector(`[data-sta="${side}"]`);
+  sel.innerHTML=mtr.lines[line].stations.map(([c,en,zh])=>`<option value="${c}"${c===keep?' selected':''}>${esc(tc()?zh:en)}</option>`).join('');};
+ fill('home',trip.home||near?.c||'MOK');fill('work',trip.work||'CEN');
+ p.addEventListener('change',e=>{const side=e.target.dataset.line;if(side)fill(side);});
+ p.querySelector('.tr-close').addEventListener('click',()=>showSetup(false));
+ p.querySelector('[data-x="cancel"]').addEventListener('click',()=>showSetup(false));
+ p.querySelector('[data-x="save"]').addEventListener('click',()=>{write(TRIP_KEY,{home:p.querySelector('[data-sta="home"]').value,work:p.querySelector('[data-sta="work"]').value});tripSide=null;showSetup(false);renderTrip();});
+ document.body.append(shade,p);
+}
+$('trip').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.trip){tripSide=b.dataset.trip;renderTrip();}
+ else if(b.dataset.act==='setup'){await mtrData().catch(()=>null);showSetup(true);}});
 
 // ---------------------------------------------------------------- traffic news
 // The Transport Department's special traffic news: incidents, closures and diversions
@@ -271,13 +337,13 @@ async function refreshNews(){await loadNews();renderNews();}
 
 // ---------------------------------------------------------------- page
 function texts(){
- const t=T();document.documentElement.lang=tc()?'zh-Hant-HK':'en';document.title=t.title;
- for(const [id,k] of [['title','title'],['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['locateLabel','locate'],['favTitle','favs'],['foot','foot'],['alertsLink','alerts']])$(id).textContent=t[k];
- const date=new Intl.DateTimeFormat(tc()?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',day:'numeric',month:tc()?'numeric':'long',year:tc()?'numeric':undefined,weekday:'short'}).format(new Date());
- $('today').textContent=(t.place+' · '+date).toUpperCase();
+ const t=T(),hl=tc()?'zh-Hant-HK':'en';if(document.documentElement.lang!==hl)document.documentElement.lang=hl;document.title=t.title;
+ for(const [id,k] of [['busName','bus'],['mtrName','mtr'],['tramName','tram'],['ferryName','ferry'],['nearbyTitle','nearby'],['locateLabel','locate'],['favTitle','more'],['foot','foot'],['alertsName','alerts']])$(id).textContent=t[k];
+ const h=hkNow().min;$('title').textContent=t.greet[h>=5*60&&h<12*60?0:h>=12*60&&h<18*60?1:2];
+ $('today').textContent=new Intl.DateTimeFormat(tc()?'zh-HK':'en-GB',{timeZone:'Asia/Hong_Kong',day:'numeric',month:'long',weekday:'long'}).format(new Date());
  document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
 }
-function refresh(){renderNearby();renderFavs();refreshNews();}
+function refresh(){texts();renderTrip();renderNearby();renderFavs();refreshNews();}
 // On open, a quick rough fix (wifi or phone network) shows something at once, then a GPS fix
 // replaces it. A rougher answer never replaces a sharper one.
 let acc=Infinity;
@@ -304,12 +370,12 @@ addEventListener('dashboard:here',e=>take(e.detail));
 // Tapping a nearby or favourite row opens that app on the same stop or route.
 document.addEventListener('click',e=>{const a=e.target.closest('a.row[data-set]');if(!a)return;
  try{const {key,merge}=JSON.parse(a.dataset.set);write(key,{...(read(key)||{}),...merge});}catch{}});
-document.querySelectorAll('[data-lang]').forEach(b=>b.addEventListener('click',()=>{lang=b.dataset.lang;write('dashboard_lang',lang);texts();refresh();}));
+document.querySelectorAll('[data-lang]').forEach(b=>b.addEventListener('click',()=>{lang=b.dataset.lang;write('dashboard_lang',lang);showSetup(false);refresh();}));
 $('locateBtn').addEventListener('click',()=>locate(false));
 // Back from an app, Safari may show this page from its cache: pick up changes made there.
-addEventListener('pageshow',e=>{if(!e.persisted)return;const l=read('dashboard_lang');if(TEXT[l])lang=l;texts();refresh();});
+addEventListener('pageshow',e=>{if(!e.persisted)return;const l=read('dashboard_lang');if(TEXT[l])lang=l;refresh();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;
  if(!here&&(locState==='denied'||locState==='fail'))autoLocate();refresh();});
 setInterval(()=>{if(document.visibilityState==='visible')refresh();},30000);
 
-texts();renderNearby();renderFavs();refreshNews();autoLocate();
+texts();renderTrip();renderNearby();renderFavs();refreshNews();autoLocate();

@@ -182,7 +182,7 @@ function locate(auto=false){const t=T(),note=$('locateNote');
   const lines=Object.keys(LINES).filter(l=>D(l).some(s=>s[0]===nearest.code));if(!lines.includes(state.line))state.line=lines.find(l=>l!=='AEL')||lines[0];
   state.station=nearest.code;state.dir='UP';state.receivedAt=0;state.apiKey='';populateSelects();persist();refresh(true);
   // Journeys start from the nearest station too.
-  $('fareFromLine').value=state.line;fillStations('From',nearest.code);renderFare();
+  if(!state.keepFrom){$('fareFromLine').value=state.line;fillStations('From',nearest.code);renderFare();}
   note.textContent=`${t.nearest}: ${name(nearest.code)} · ${nearest.d<1?Math.max(10,Math.round(nearest.d*100)*10)+' m':nearest.d.toFixed(1)+' km'}`;},
   err=>{note.textContent=auto?'':err.code===1?t.locateDenied:t.locateFail;},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
 function renderStation(){const code=$(state.infoSide==='from'?'fareFrom':'fareTo')?.value;if(!code)return;
@@ -235,5 +235,8 @@ function install(){installLinePickers();translate();navigate(state.view);
 install();
 // The dashboard menu opens a favourite station in the Journey planner as the
 // destination (#to=LINE|STATION); Locate me still fills in From.
-{const to=decodeURIComponent(location.hash).match(/^#to=([A-Z]{3})\|([A-Z]{3})$/);
- if(to&&LINES[to[1]]&&D(to[1]).some(s=>s[0]===to[2])){$('fareToLine').value=to[1];fillStations('To',to[2]);renderFare();navigate('fares');}}
+// The menu's trip card also sets the start (&from=LINE|STATION); then Locate me leaves From alone.
+{const h=decodeURIComponent(location.hash),to=h.match(/^#to=([A-Z]{3})\|([A-Z]{3})/),from=h.match(/&from=([A-Z]{3})\|([A-Z]{3})$/);
+ const ok=m=>m&&LINES[m[1]]&&D(m[1]).some(s=>s[0]===m[2]);
+ if(ok(from)){state.keepFrom=true;$('fareFromLine').value=from[1];fillStations('From',from[2]);}
+ if(ok(to)){$('fareToLine').value=to[1];fillStations('To',to[2]);renderFare();navigate('fares');}}
