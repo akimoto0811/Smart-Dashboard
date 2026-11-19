@@ -1,0 +1,8 @@
+# Files Cloudflare should not publish as part of the website.
+.git
+.github
+worker
+wrangler.jsonc
+tools
+**/*.py
+__pycache__
