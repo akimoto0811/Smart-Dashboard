@@ -70,7 +70,12 @@ async function arrivals(a, cache) {
   }
   const j = await getJSON(`https://rt.data.gov.hk/v1/transport/mtr/getSchedule.php?line=${a.line}&sta=${a.sta}`, cache);
   const trains = j?.data?.[`${a.line}-${a.sta}`]?.[a.dir] || [];
-  return trains.map(x => now + Number(x.ttnt) * 60000).filter(Number.isFinite).sort((x, y) => x - y);
+  // "time" is MTR's own arrival time (HK clock, to the second). "ttnt" is only
+  // whole minutes, so it's the fallback.
+  return trains.map(x => {
+    const t = Date.parse(String(x.time || '').replace(' ', 'T') + '+08:00');
+    return Number.isFinite(t) ? t : now + Number(x.ttnt) * 60000;
+  }).filter(Number.isFinite).sort((x, y) => x - y);
 }
 
 function message(a, mins, lang) {
@@ -120,16 +125,22 @@ export class AlertStore extends DurableObject {
       const sent = JSON.parse(row.sent || '{}');
       let changed = false, gone = false;
       for (const a of alerts) {
-        const next = (await arrivals(a, cache))[0];
+        // Arrivals already announced in the last 10 minutes (older rows stored one number).
+        const before = Array.isArray(sent[a.id]) ? sent[a.id] : typeof sent[a.id] === 'number' ? [sent[a.id]] : [];
+        const done = before.filter(t => t > now - 10 * 60000);
+        if (done.length !== before.length) { sent[a.id] = done; changed = true; }
+        // The soonest bus or train inside the warning time that hasn't been announced.
+        // Looking past the first one matters: the train at the platform stays first in
+        // MTR's list for a minute or two, and the one behind it must not wait for it.
+        const next = (await arrivals(a, cache)).find(t => {
+          const m = Math.round((t - now) / 60000);
+          return m >= 1 && m <= a.lead && !done.some(d => Math.abs(d - t) < 90000);
+        });
         if (!next) continue;
-        const mins = Math.max(0, Math.round((next - now) / 60000));
-        if (mins > a.lead) continue;
-        // One push per arrival: skip if this bus or train (within 2 min) was already announced.
-        const last = sent[a.id];
-        if (last && Math.abs(last - next) < 120000) continue;
+        const mins = Math.round((next - now) / 60000);
         const result = await sendPush(JSON.parse(row.sub), message(a, mins, row.lang), this.env, { ttl: 120 });
         if (result.gone) { gone = true; break; }
-        if (result.ok) { sent[a.id] = next; changed = true; pushed++; }
+        if (result.ok) { sent[a.id] = [...done, next].slice(-6); changed = true; pushed++; }
       }
       if (gone) this.sql.exec('DELETE FROM phones WHERE endpoint = ?', row.endpoint);
       else if (changed) this.sql.exec('UPDATE phones SET sent = ? WHERE endpoint = ?', JSON.stringify(sent), row.endpoint);
