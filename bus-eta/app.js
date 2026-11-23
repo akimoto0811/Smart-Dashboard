@@ -46,7 +46,7 @@ const UI_ZH = {
  'No routes yet. Allow location access while in Hong Kong.':'暫未找到路線，請在香港使用時允許讀取位置。',
  'Checking your location… Tap Locate me if needed':'正在定位… 如有需要請按「定位」',
  'Illustration only':'僅供示範','ETA':'到站時間','No ETA':'暫無預報','Error':'錯誤','Due':'即將到站',
- 'Saved bus stops':'已收藏巴士站','Your chosen route, direction and boarding stop':'已儲存的路線、方向及上車站',
+ 'Saved bus stops':'已收藏巴士站','Your chosen route, direction and boarding stop':'已儲存的路線、方向及上車站','Tap for arrivals · swipe left to remove':'按一下查看到站 · 向左掃可移除',
  'No favourites saved. Add one from Routes or Nearby.':'尚未收藏巴士站，可從「路線」或「附近」新增。',
  'Add a favourite':'新增收藏','Export backup':'匯出備份',
  'Preferences':'偏好設定','Choose your language and start page':'選擇介面語言及啟動畫面',
@@ -343,7 +343,7 @@ function refreshFavouriteETAs(force=false){
  });});
 }
 function favouriteRows(){const arr=state.demo?demoStops:state.favourites;return arr.map((f,i)=>`<button class="route-group" data-action="openFavourite" data-index="${i}"><span class="arrival-bus">${esc(f.route)}</span><span class="group-info"><strong>${esc(localizedStop(f))}</strong><span class="group-meta">${state.lang==='tc'?'往':'To'} ${esc(localizedDestination(f))}</span>${operatorChips([...new Set(f.variants.map(x=>x.operator))])}</span>${favouriteETAMarkup(f,i)}<span class="group-arrow">›</span></button>`).join('');}
-function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Your chosen route, direction and boarding stop')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
+function favourites(){const fs=state.demo?demoStops:state.favourites;return `${line('Saved bus stops','Tap for arrivals · swipe left to remove')}<div class="card no-gap">${fs.length?favouriteRows():'<div class="empty">No favourites saved. Add one from Routes or Nearby.</div>'}</div><div class="buttons"><button class="primary-button" data-view="browse">Add a favourite</button><button class="ghost-button" data-action="exportFav">Export backup</button></div>`;}
 function browse(){const q=state.query.trim(), groups=q?routeResults():[], exact=q&&groups.length>0&&groups.every(g=>g.route===clean(q)), same=groups.filter(g=>g.route===clean(q)), more=same.length?groups.filter(g=>g.route!==clean(q)):[];
  return `<div class="card search-card"><label class="card-title" for="routeSearch">Route number or stop name</label><input id="routeSearch" class="field" autocomplete="off" enterkeyhint="search" placeholder="e.g. 102 or Central" value="${esc(state.query)}"/>${q&&!exact?'<p class="small-note search-hint">Showing matching routes and directions.</p>':''}</div><div class="operator-row route-filters">${['ALL',...operators].map(op=>`<button data-action="filterOp" data-value="${op}" class="${state.operator===op?'selected':''}">${op==='ALL'?'All':esc(op)}</button>`).join('')}</div><section id="routeResults" class="route-results">${q?`${line('Routes and directions',`${fmt((more.length?same:groups).length)} grouped result${(more.length?same:groups).length===1?'':'s'}`)}<div class="card no-gap">${groups.length?groupRows((more.length?same:groups).slice(0,100)):'<div class="empty">No matching routes. Try another number or stop name.</div>'}</div>${more.length?`${line(`Routes starting with ${clean(q)}`,`${fmt(more.length)} grouped result${more.length===1?'':'s'}`)}<div class="card no-gap">${groupRows(more.slice(0,100))}</div>`:''}${groups.length>100?'<p class="small-note">Showing the first 100 results; refine your search.</p>':''}`:'<div class="search-empty">Enter a route number to find its direction and verified stops.</div>'}</section>`;}
 function nearby(){
@@ -1382,4 +1382,10 @@ const favLink=decodeURIComponent(location.hash).match(/^#fav=([^|]+)\|(.+)$/);
 let favPending=favLink?state.favourites.find(f=>f.variants.some(v=>v.route===favLink[1]&&v.stop_id===favLink[2]))||null:null;
 if(favPending)state.view='favourites';
 function openPendingFavourite(){if(!favPending||!state.catalogue.length)return;const f=favPending;favPending=null;void openGroup('',f);if(state.nearbyFocus)state.nearbyFocus.saved=true;}
+// Swipe a saved stop left (or tap the Remove button it shows) to remove it, with Undo.
+window.SwipeRemove?.attach($('#mainContent'),'.route-group[data-action="openFavourite"]',row=>{
+ if(state.demo){banner('Switch to Live mode to save favourites.');return render();}
+ const i=Number(row.dataset.index),f=state.favourites[i];if(!f)return render();
+ const before=[...state.favourites];state.favourites.splice(i,1);persist('hkbus_favourites_v2',state.favourites);render();
+ window.SwipeRemove.undo(f.route+' · '+localizedStop(f),()=>{state.favourites=before;persist('hkbus_favourites_v2',state.favourites);render();});});
 render();if(state.view==='nearby'&&!state.demo){state.locationRequested=true;locate();}loadCatalogue();

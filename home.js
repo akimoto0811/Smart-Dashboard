@@ -16,7 +16,7 @@ const TEXT={
   greet:['Good morning','Good afternoon','Good evening'],trip:'Your trip',tripTab:'Trip',toWork:'To work',toHome:'Home',edit:'Edit trip',setTrip:'Set up your trip',
   setTripDesc:'Pick the MTR stations nearest your home and work. The card then shows your trip with live trains: to work in the morning, home after 2 pm.',
   homeSt:'Home station',workSt:'Work station',save:'Save',cancel:'Cancel',minTo:n=>`to ${n}`,nextArrive:(w,a)=>`Next train ${w} · arrive ${a}`,arrive:a=>`Arrive about ${a}`,
-  remind:'🔔 Remind me',details:'Details ›',all:'All ›',walk:'Walk',noRoute:'No MTR route between these stations.',then:'then',more:'More favourites'},
+  remind:'🔔 Remind me',details:'Details ›',all:'All ›',walk:'Walk',noRoute:'No MTR route between these stations.',then:'then',more:'More favourites',unfav:'Remove from favourites'},
  tc:{title:'智能交通資訊',place:'香港',bus:'巴士',mtr:'港鐵',tram:'電車',ferry:'渡輪',nearby:'附近',locate:'定位',favs:'收藏',
   locating:'正在定位…',denied:'請為此網站開啟定位，以查看附近交通。',noLocation:'無法取得位置，請按「定位」再試。',
   loading:'載入中…',none:'暫時沒有預報班次',noBus:'600 米內沒有巴士站',nothingNear:'附近沒有巴士、港鐵、電車或渡輪。',min:'分鐘',due:'即將到達',to:'往',towards:'往',
@@ -26,7 +26,7 @@ const TEXT={
   greet:['早晨','午安','晚安'],trip:'我的行程',tripTab:'行程',toWork:'返工',toHome:'返屋企',edit:'修改行程',setTrip:'設定行程',
   setTripDesc:'選擇住所及公司附近的港鐵站。卡片會顯示行程及實時列車：早上顯示返工，下午 2 時後顯示返屋企。',
   homeSt:'住所車站',workSt:'公司車站',save:'儲存',cancel:'取消',minTo:n=>`往${n}`,nextArrive:(w,a)=>`下一班 ${w} · 約 ${a} 到達`,arrive:a=>`約 ${a} 到達`,
-  remind:'🔔 提示我',details:'詳情 ›',all:'全部 ›',walk:'步行',noRoute:'這兩個車站之間沒有港鐵路線。',then:'之後',more:'更多收藏'}};
+  remind:'🔔 提示我',details:'詳情 ›',all:'全部 ›',walk:'步行',noRoute:'這兩個車站之間沒有港鐵路線。',then:'之後',more:'更多收藏',unfav:'從收藏移除'}};
 const ICON={
  bus:'<svg viewBox="0 0 32 32"><rect x="6" y="4" width="20" height="21" rx="5"/><path d="M6 15h20M10 25v3m12-3v3M11 20h1m8 0h1M10 9h12"/></svg>',
  mtr:'<svg viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="23" rx="7"/><path d="M9 14h14M11 9h10M11 26l-3 4m13-4 3 4M12 20h2m4 0h2"/></svg>',
@@ -195,9 +195,23 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()
 // ---------------------------------------------------------------- Favourites
 // Favourites are glance cards with big live minutes: first MTR, first bus, then the rest.
 const badge=(text,bg,fg='#fff')=>`<span class="badge" style="background:${esc(bg)};color:${esc(fg)}">${esc(text)}</span>`;
+const busFavID=f=>JSON.stringify((f.variants||[]).map(v=>[v.operator,v.route,v.stop_id,v.direction,v.service_type]));
 function glance(it){const t=T(),m=it.mins;
  const big=it.bigHtml?`<div class="big">${it.bigHtml}</div>`:it.loading?'<div class="big none">…</div>':m.length?`<div class="big">${m[0]<=0?esc(t.due):`${m[0]}<small>${esc(t.min)}</small>`}</div>`:`<div class="big none">${esc(t.none)}</div>`;
- return `<a class="card gl row-like" style="--stripe:${esc(it.bg)}" href="${it.href}"${it.set?` data-set='${esc(JSON.stringify(it.set))}'`:''}>${badge(it.badge,it.bg,it.fg)}${big}<div class="sub"><b>${esc(it.place)}</b>${it.dest?' · '+esc(it.dest):''}</div><div class="then">${m.length>1?esc(t.then+' '+m.slice(1,3).join(', ')):''}</div></a>`;}
+ return `<div class="gl-wrap"><a class="card gl row-like" style="--stripe:${esc(it.bg)}" href="${it.href}"${it.set?` data-set='${esc(JSON.stringify(it.set))}'`:''}>${badge(it.badge,it.bg,it.fg)}${big}<div class="sub"><b>${esc(it.place)}</b>${it.dest?' · '+esc(it.dest):''}</div><div class="then">${m.length>1?esc(t.then+' '+m.slice(1,3).join(', ')):''}</div></a>`+
+  (it.fav?`<button class="gl-x" type="button" data-unfav='${esc(JSON.stringify(it.fav))}' data-name="${esc(it.place)}" aria-label="${esc(t.unfav)}: ${esc(it.place)}">✕</button>`:'')+'</div>';}
+// ✕ on a favourite card removes it from the app that saved it, with Undo.
+const FAV_STORE={mtr:'mtr_eta_v1_prefs',ferry:'ferry_prefs'};
+function unfavourite(fav,name){
+ const key=fav.k==='bus'?'hkbus_favourites_v2':FAV_STORE[fav.k];if(!key)return;
+ const before=read(key);let after;
+ if(fav.k==='bus')after=(before||[]).filter(f=>busFavID(f)!==fav.id);
+ else if(fav.k==='mtr')after={...before,favourites:(before?.favourites||[]).filter(x=>x!==fav.key)};
+ else after={...before,favourites:(before?.favourites||[]).filter(f=>!(f&&f.s===fav.s&&f.d===fav.d))};
+ write(key,after);renderFavs();
+ window.SwipeRemove?.undo(name,()=>{write(key,before);renderFavs();});}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-unfav]');if(!b)return;e.preventDefault();
+ try{unfavourite(JSON.parse(b.dataset.unfav),b.dataset.name||'');}catch{}});
 async function renderFavs(){
  const t=T(),now=hkNow();
  const bus=(read('hkbus_favourites_v2')||[]).filter(f=>Array.isArray(f?.variants)&&f.variants.length);
@@ -207,16 +221,16 @@ async function renderFavs(){
  if(!total){$('glance').innerHTML='';return;}
  if(mtrFav.length)await mtrData().catch(()=>null);
  const mtrItems=mtrFav.slice(0,3).map(key=>{const [line,sta]=key.split('|');
-  return {kind:'mtr',line,sta,href:`mtr-eta/#to=${encodeURIComponent(key)}`,badge:line,bg:mtr?.lines[line]?.color||'#e2231a',place:stName(sta),dest:lineName(line),mins:[],loading:true};});
+  return {kind:'mtr',fav:{k:'mtr',key},line,sta,href:`mtr-eta/#to=${encodeURIComponent(key)}`,badge:line,bg:mtr?.lines[line]?.color||'#e2231a',place:stName(sta),dest:lineName(line),mins:[],loading:true};});
  const busItems=bus.slice(0,4).map(f=>{const v=f.variants[0],[bg,fg]=BUS_COLOUR[v.operator]||BUS_COLOUR.KMB;
   const dest=tc()?f.destination_tc||f.destination||f.destination_en:f.destination_en||f.destination||'';
   // Open the Bus app on this route's stop list, with the saved stop marked.
-  return {kind:'bus',f,href:`bus-eta/#fav=${encodeURIComponent(v.route+'|'+v.stop_id)}`,badge:f.route,bg,fg,place:(tc()?f.name_tc||f.name:f.name_en||f.name)||'',dest:dest?`${t.to} ${dest}`:'',mins:[],loading:true};});
+  return {kind:'bus',fav:{k:'bus',id:busFavID(f)},f,href:`bus-eta/#fav=${encodeURIComponent(v.route+'|'+v.stop_id)}`,badge:f.route,bg,fg,place:(tc()?f.name_tc||f.name:f.name_en||f.name)||'',dest:dest?`${t.to} ${dest}`:'',mins:[],loading:true};});
  const cards=[...mtrItems.slice(0,1),...busItems.slice(0,1),...mtrItems.slice(1),...busItems.slice(1)];
  if(ferryFav.length){try{const d=await load('ferry-eta/ferry-data.json');
   ferryFav.slice(0,3).forEach(f=>{const s=d.services.find(x=>x.id===f.s);const dir=s?.dirs[f.d];if(!dir)return;
    const n=nextSailing(dir,d,now),w=sailingWhen(n,now);
-   cards.push({kind:'ferry',href:'ferry-eta/',badge:'⛴',bg:'#1e6fd9',place:`${place(d,dir.f)} → ${place(d,dir.t)}`,dest:'',mins:[],bigHtml:w.html||esc(t.noSailing),set:{key:'ferry_prefs',merge:{service:s.id,dir:f.d}}});});
+   cards.push({kind:'ferry',fav:{k:'ferry',s:f.s,d:f.d},href:'ferry-eta/',badge:'⛴',bg:'#1e6fd9',place:`${place(d,dir.f)} → ${place(d,dir.t)}`,dest:'',mins:[],bigHtml:w.html||esc(t.noSailing),set:{key:'ferry_prefs',merge:{service:s.id,dir:f.d}}});});
  }catch{}}
  // All favourites are cards in one row: two show, swipe sideways for the rest.
  const draw=()=>{$('glance').innerHTML=cards.map(glance).join('');$('glance').classList.toggle('many',cards.length>2);};

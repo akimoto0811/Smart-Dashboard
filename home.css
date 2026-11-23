@@ -66,6 +66,8 @@ h1{font-size:28px;letter-spacing:-1px;margin:0;line-height:1.1;font-weight:800}
 .glance{display:grid;grid-auto-flow:column;grid-auto-columns:calc(50% - 6px);gap:12px;margin:0 -16px 12px;padding:2px 16px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding:0 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .glance::-webkit-scrollbar{display:none}
 .glance .gl{scroll-snap-align:start}
+.gl-wrap{position:relative;min-width:0;scroll-snap-align:start}.gl-wrap>.gl{height:100%;box-sizing:border-box}
+.gl-x{position:absolute;top:9px;right:6px;width:30px;height:30px;border:0;border-radius:50%;background:none;color:var(--muted);font-size:13px;line-height:30px;padding:0;opacity:.8}.gl-x:active{background:rgba(127,127,127,.2)}
 .glance.many{grid-auto-columns:calc(50% - 22px)}
 .glance:empty{display:none}
 .gl{margin:0;padding:12px 13px;display:block;color:var(--fg);text-decoration:none;min-width:0}
