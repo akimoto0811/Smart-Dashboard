@@ -1,0 +1,27 @@
+/* Favourites lists in Bus, MTR and Ferry: one card style for all three, matching
+   the menu's favourite cards. A coloured badge (bus route, MTR line, ferry), the
+   stop or station, and the next arrival in big numbers. Colours come from the
+   --wx-* tokens shared/weather.js sets on every app, light and dark.
+   Version 1.0.0. */
+.fv-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:4px 2px 10px}
+.fv-head h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.3px;color:var(--wx-fg,#1a1a1a)}
+.fv-head span{color:var(--wx-muted,#5f6b66);font-size:12px;font-weight:650;white-space:nowrap}
+.fv-help{color:var(--wx-muted,#5f6b66);font-size:12px;line-height:1.5;margin:4px 2px 14px}
+.fv-empty{border:1px dashed var(--wx-line,#d5dcd7);border-radius:8px;padding:16px;color:var(--wx-muted,#5f6b66);font-size:13px;line-height:1.5;background:var(--wx-bg,#fff)}
+
+.fv{display:flex;align-items:center;gap:12px;width:100%;min-height:68px;box-sizing:border-box;margin:0 0 8px;padding:11px 12px 11px 13px;
+ background:var(--wx-bg,#fff);border:1px solid var(--wx-line,#d5dcd7);border-radius:8px;color:var(--wx-fg,#1a1a1a);text-align:left;font:inherit;
+ -webkit-tap-highlight-color:transparent;box-shadow:var(--wx-pill-shadow,none)}
+.fv:active{transform:scale(.985)}
+.fv-badge{display:inline-grid;place-items:center;flex-shrink:0;min-width:46px;height:30px;padding:0 7px;box-sizing:border-box;border-radius:6px;
+ background:var(--c,#00704a);color:var(--cf,#fff);font-size:14px;font-weight:850;letter-spacing:-.2px;white-space:nowrap}
+.fv-badge svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2.3;stroke-linecap:round;stroke-linejoin:round}
+.fv-main{flex:1;min-width:0}
+.fv-main strong{display:block;font-size:15px;font-weight:750;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-main small{display:block;margin-top:3px;color:var(--wx-muted,#5f6b66);font-size:12px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fv-when{flex-shrink:0;text-align:right;color:var(--wx-accent,#00704a);font-weight:800;line-height:1;white-space:nowrap}
+.fv-when b{font-size:24px;letter-spacing:-.6px}
+.fv-when small{display:block;margin-top:3px;font-size:11px;font-weight:650;color:var(--wx-muted,#5f6b66);letter-spacing:0}
+.fv-when.none{color:var(--wx-muted,#5f6b66);font-size:12px;font-weight:650;max-width:84px;white-space:normal;line-height:1.3}
+.fv-when.wait{color:var(--wx-muted,#5f6b66);font-size:18px}
+.fv-go{flex-shrink:0;color:var(--wx-accent,#00704a);font-size:22px;font-weight:700;line-height:1;margin-left:-2px}

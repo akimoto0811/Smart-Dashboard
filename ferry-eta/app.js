@@ -15,7 +15,7 @@ const TEXT={
   timetable:'TIMETABLE',liveBadge:'LIVE + TIMETABLE',w:'Mon–Fri timetable',s:'Saturday timetable',h:'Sunday & public holiday timetable',
   faresTitle:'Fares',adult:'Adult single journey',journey:'Journey time about {m} min',trip:'{m} min trip',fareLabel:'ADULT FARE',fareNote:'Adult fares from the official fare table. Children, seniors and people with disabilities usually pay less.',
   tdLink:'Timetable and fares on the TD website ↗',noFares:'No fare table in the open data for this route.',today:'Today',
-  favTitle:'Favourite routes',favCount:n=>`${n} saved`,favHelp:'Save a route from Next sailings for quick access.',favEmpty:'No favourites yet.',
+  favTitle:'Favourite routes',favCount:n=>`${n} saved`,favHelp:'Tap for sailings · swipe left to remove',favEmpty:'No favourites yet.',
   settingsTitle:'Settings',languageLabel:'Interface language',dataTitle:'Official data',aboutTitle:'About this dashboard',
   dataStatus:d=>`Timetables and fares updated ${d}, from the Transport Department's ferry schedules and The Star Ferry's open data. Live positions come from Sun Ferry and Hong Kong & Kowloon Ferry.`,
   about:'Domestic ferries and kaitos only; cross-boundary ferries are not included. Times are the published timetable, so a sailing can leave a little early or late. Always check notices at the pier.',
@@ -29,7 +29,7 @@ const TEXT={
   timetable:'時間表',liveBadge:'實時 + 時間表',w:'星期一至五時間表',s:'星期六時間表',h:'星期日及公眾假期時間表',
   faresTitle:'船費',adult:'成人單程',journey:'航程約 {m} 分鐘',trip:'航程 {m} 分鐘',fareLabel:'成人船費',fareNote:'成人船費取自官方收費表。小童、長者及殘疾人士一般有優惠。',
   tdLink:'運輸署網頁的班次及收費 ↗',noFares:'開放資料沒有此航線的收費表。',today:'今日',
-  favTitle:'收藏航線',favCount:n=>`已收藏 ${n} 條`,favHelp:'在「下一班船」收藏航線，方便快速查看。',favEmpty:'尚未收藏航線。',
+  favTitle:'收藏航線',favCount:n=>`已收藏 ${n} 條`,favHelp:'按一下查看班次 · 向左掃可移除',favEmpty:'尚未收藏航線。',
   settingsTitle:'設定',languageLabel:'介面語言',dataTitle:'官方資料',aboutTitle:'關於此資訊板',
   dataStatus:d=>`班次及船費於 ${d} 更新，資料來自運輸署渡輪服務時間表及天星小輪開放資料。航行位置來自新渡輪及港九小輪。`,
   about:'只包括本地渡輪及街渡，不包括跨境渡輪。顯示的是公佈時間表，實際開船時間或會略有不同，請留意碼頭通告。',
@@ -172,13 +172,24 @@ function renderFares(){
  txt('tdLink',t.tdLink);
 }
 
+// Same card as Bus and MTR favourites (shared/favourites.css): ferry badge, the
+// route, and the next sailing from the timetable.
+function favWhen(dir){const tc=state.lang==='tc',now=hkNow(),u=upcoming(dir,now);
+ if(u.band)return now.min>=u.band[0]?`<span class="fv-when"><b>${u.band[2]}</b><small>${tc?'分鐘一班':'min apart'}</small></span>`:`<span class="fv-when"><b>${hhmm(u.band[0])}</b><small>${tc?'首班':'first'}</small></span>`;
+ if(u.next?.length){const w=u.next[0]-now.min;return w<60?`<span class="fv-when"><b>${w<=0?(tc?'即將開出':'Now'):w}</b>${w>0?`<small>${tc?'分鐘':'min'}</small>`:''}</span>`:`<span class="fv-when"><b>${hhmm(u.next[0])}</b><small>${tc?'下一班':'next'}</small></span>`;}
+ if(u.tomorrow?.length)return `<span class="fv-when"><b>${hhmm(u.tomorrow[0])}</b><small>${tc?'明天':'tomorrow'}</small></span>`;
+ return `<span class="fv-when none">${tc?'今日已無班次':'No more sailings'}</span>`;}
 function renderFavourites(){
  const t=T(),list=state.favourites.filter(f=>data.services.some(s=>s.id===f.s));
  txt('favCount',t.favCount(list.length));
  $('favList').innerHTML=list.length?list.map((f,i)=>{const s=data.services.find(x=>x.id===f.s),d=s.dirs[f.d]||s.dirs[0];
-  return `<button class="fav" data-fav="${i}" type="button"><span class="label"><strong>${esc(dirName(d))}</strong><small>${esc(nm(s))}</small></span><span class="arrow">›</span></button>`;}).join('')
-  :`<div class="empty-note">${esc(t.favEmpty)}</div>`;
+  return `<button class="fv" data-fav="${i}" type="button"><span class="fv-badge" style="--c:#1e6fd9"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 19l3 6h16l3-6zM9 19v-7h14v7M13 12V7h6v5M4 29c3 0 3-1.5 6-1.5s3 1.5 6 1.5 3-1.5 6-1.5 3 1.5 6 1.5"/></svg></span><span class="fv-main"><strong>${esc(dirName(d))}</strong><small>${esc(state.lang==='tc'?`渡輪 · 約 ${s.mins} 分鐘`:`Ferry · about ${s.mins} min`)}</small></span>${favWhen(d)}<span class="fv-go">›</span></button>`;}).join('')
+  :`<div class="fv-empty">${esc(t.favEmpty)}</div>`;
  $('favList').querySelectorAll('[data-fav]').forEach(b=>b.onclick=()=>{const f=list[+b.dataset.fav];state.service=f.s;state.dir=f.d;fillSelects();persist();show('sailings');refresh();});
+ // Swipe a saved route left (or tap the Remove button it shows) to remove it, with Undo.
+ window.SwipeRemove?.attach($('favList'),'.fv[data-fav]',row=>{const f=list[+row.dataset.fav],i=state.favourites.indexOf(f);if(i<0)return renderFavourites();
+  const before=[...state.favourites];state.favourites.splice(i,1);persist();renderFavourites();render();
+  window.SwipeRemove.undo(row.querySelector('strong')?.textContent||'',()=>{state.favourites=before;persist();renderFavourites();render();});});
 }
 
 function texts(){
