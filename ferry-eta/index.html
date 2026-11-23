@@ -7,7 +7,8 @@
 <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0b1120" media="(prefers-color-scheme: dark)">
 <title>Ferry ETA · Hong Kong ferries</title>
 <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png"><link rel="icon" type="image/png" href="../icons/icon-192.png">
-<link rel="stylesheet" href="../shared/transit.css?v=1.2.0"><link rel="stylesheet" href="../shared/signs.css?v=1.0.0">
+<link rel="stylesheet" href="../shared/transit.css?v=1.2.0"><link rel="stylesheet" href="../shared/favourites.css?v=1.0.0">
+<link rel="stylesheet" href="../shared/signs.css?v=1.0.0">
 <script>
 // GitHub Pages lets Safari keep this page for up to 10 minutes, so after a
 // release it could show the old version. Fetch the page fresh on open and when
@@ -52,9 +53,9 @@
  </section>
 
  <section id="view-favourites" class="hidden">
-  <div class="section-head"><h2 id="favTitle">Favourite routes</h2><span class="hint" id="favCount"></span></div>
+  <div class="fv-head"><h2 id="favTitle">Favourite routes</h2><span id="favCount"></span></div>
   <div id="favList"></div>
-  <p class="section-foot" id="favHelp">Save a route from Next sailings for quick access.</p>
+  <p class="fv-help" id="favHelp">Save a route from Next sailings for quick access.</p>
  </section>
 
  <section id="view-settings" class="hidden">
@@ -75,5 +76,6 @@
 </nav>
 <div id="toast" class="toast hidden" role="status"></div>
 <script src="../shared/weather.js?v=1.2.6" defer></script>
-<script src="./app.js?v=1.0.0" defer></script>
+<script src="../shared/swipe-remove.js?v=1.0.0" defer></script>
+<script src="./app.js?v=1.1.0" defer></script>
 </body></html>
